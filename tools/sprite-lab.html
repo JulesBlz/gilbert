@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Labo d'animation de Gilbert</title>
+  <style>
+    body { margin: 0; padding: 20px; background: #eef1f5; font: 14px/1.4 system-ui, sans-serif; color: #14191f; }
+    body.dark { background: #1b2027; color: #e4dcd4; }
+    header { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    h1 { font-size: 18px; font-weight: 600; margin: 0 12px 0 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .cell { background: rgba(127, 127, 127, 0.08); border-radius: 10px; padding: 10px; text-align: center; }
+    canvas { image-rendering: pixelated; display: block; margin: 0 auto 6px; }
+    .name { font-weight: 600; }
+    .frames { font-size: 12px; opacity: 0.6; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Labo d'animation</h1>
+    <label>Taille <input id="scale" type="range" min="3" max="8" value="5"></label>
+    <label><input id="dark" type="checkbox"> Fond sombre</label>
+    <label>Vitesse <select id="speed"><option value="1">×1</option><option value="0.5">×0,5</option><option value="0.25">×0,25</option></select></label>
+  </header>
+  <div class="grid" id="grid"></div>
+  <script>
+    // [frame, durée en ms, décalage vertical en pixels de Gilbert (négatif = vers le haut), décalage horizontal]
+    // mêmes durées que dans src/renderer/pet.ts (FRAME = 100 ms)
+    const ANIMS = {
+      'Repos': [['idle0', 1600], ['idle1', 200], ['idle0', 200], ['idle2', 200], ['idle0', 900], ['blink', 120]],
+      'Parle': [['idle0', 100], ['talk0', 50], ['talk1', 50], ['talk0', 50], ['idle0', 100], ['talk1', 50], ['talk0', 50]],
+      'Réfléchit': [['think', 1200], ['blink', 120], ['think', 800]],
+      'Content / alerte': [['happy', 900], ['idle0', 300], ['alert0', 200, -3], ['alert1', 200], ['alert0', 200, -3], ['alert1', 200]],
+      'Marche': [['walk0', 100, 0, 0], ['walk1', 100, 0, -1], ['walk2', 100, 0, -2], ['walk3', 100, 0, -3], ['walk4', 100, 0, -4], ['walk5', 100, 0, -5]],
+      'Bonds': [['hop0', 100, 0, 0], ['hop1', 100, 0, -2], ['hop2', 100, -3, -4], ['hop3', 100, -5, -6], ['hop4', 100, -6, -8], ['hop5', 100, -5, -10], ['hop6', 100, -3, -12], ['hop7', 100, 0, -14]],
+      'Rire (sauts sur place)': [['bounce1', 100, 0, 0], ['bounce2', 100, -3, 0], ['bounce3', 100, -6, 0], ['bounce4', 100, -3, 0], ['bounce5', 100, 0, 0], ['idle0', 500]],
+      'Monte se cacher': [['idle0', 500], ['leap1', 120], ['leap2', 50, -2], ['leap3', 50, -6], ['leap4', 50, -12], ['leap5', 300, -24]],
+      'Chute et réception': [['fall0', 100, -14, 0], ['fall1', 100, -11, 0], ['fall2', 100, -8, 0], ['fall3', 100, -5, 0], ['fall4', 100, -2, 0], ['fall5', 100], ['fall6', 150], ['idle0', 600]],
+      'Pendu par la queue': [['grab0', 100, 0, 0], ['grab1', 100, 0, 0], ['grab2', 100, 0, 0], ['grab3', 100, 0, 0], ['grab4', 100, 0, 0], ['grab5', 100, 0, 0], ['grab6', 100, 0, 0], ['grab7', 100, 0, 0], ['grab8', 100, 0, 0], ['grab9', 100, 0, 0], ['grab10', 100, 0, 0], ['grab11', 100, 0, 0]],
+      'Queue qui pend': [['hang0', 800], ['hang1', 800], ['hang0', 800], ['hang2', 800]],
+      'Queue tirée': [['hang0', 500], ['pulled', 600], ['hang0', 400]],
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const img = new Image();
+    let atlas;
+    const cells = [];
+
+    function build() {
+      const grid = $('grid');
+      grid.innerHTML = '';
+      cells.length = 0;
+      for (const [name, steps] of Object.entries(ANIMS)) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const c = document.createElement('canvas');
+        cell.append(c);
+        cell.insertAdjacentHTML('beforeend', `<div class="name">${name}</div><div class="frames">${[...new Set(steps.map((s) => s[0]))].join(' · ')}</div>`);
+        grid.append(cell);
+        cells.push({ c, steps, i: 0, t: 0 });
+      }
+      resize();
+    }
+
+    function resize() {
+      const s = +$('scale').value, n = atlas.size;
+      for (const cell of cells) {
+        cell.c.width = n * s * 1.5;
+        cell.c.height = n * s * 1.5;
+      }
+    }
+
+    function draw(cell) {
+      const s = +$('scale').value, n = atlas.size;
+      const ctx = cell.c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, cell.c.width, cell.c.height);
+      const [frame, , dy = 0, dx = 0] = cell.steps[cell.i];
+      const i = atlas.frames[frame];
+      const sx = (i % atlas.cols) * n, sy = Math.floor(i / atlas.cols) * n;
+      // sol
+      ctx.fillStyle = 'rgba(127,127,127,0.35)';
+      ctx.fillRect(0, n * s * 1.5 - 2, cell.c.width, 2);
+      const x = (cell.c.width - n * s) / 2 + dx * s, y = cell.c.height - n * s - 2 + dy * s;
+      ctx.drawImage(img, sx, sy, n, n, x, y, n * s, n * s);
+    }
+
+    let last = performance.now();
+    function loop(now) {
+      const dt = (now - last) * +$('speed').value;
+      last = now;
+      for (const cell of cells) {
+        cell.t += dt;
+        while (cell.t >= cell.steps[cell.i][1]) {
+          cell.t -= cell.steps[cell.i][1];
+          cell.i = (cell.i + 1) % cell.steps.length;
+        }
+        draw(cell);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    $('scale').oninput = resize;
+    $('dark').onchange = (e) => document.body.classList.toggle('dark', e.target.checked);
+
+    Promise.all([
+      fetch('/assets/gilbert.json').then((r) => r.json()),
+      new Promise((ok) => { img.onload = ok; img.src = '/assets/gilbert.png'; }),
+    ]).then(([a]) => {
+      atlas = a;
+      build();
+      requestAnimationFrame(loop);
+    });
+  </script>
+</body>
+</html>

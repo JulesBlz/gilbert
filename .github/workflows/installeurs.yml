@@ -1,0 +1,44 @@
+# Construit les installeurs Mac (.dmg) et Windows (.exe), gratuitement sur GitHub.
+# Lancé à chaque étiquette « v… » (ex. v0.2.0) : les installeurs sont joints à la release.
+# Lancé à la main (onglet Actions) : ils sont téléchargeables dans le résumé du run.
+# Chaque système construit le sien : llama.cpp est livré en binaires propres à chaque plateforme.
+name: Installeurs
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: mac
+            files: release/*.dmg
+          - os: windows-latest
+            target: win
+            files: release/*.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run dist:${{ matrix.target }} -- --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gilbert-${{ matrix.target }}
+          path: ${{ matrix.files }}
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.files }}

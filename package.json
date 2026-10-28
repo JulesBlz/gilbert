@@ -1,0 +1,126 @@
+{
+  "name": "gilbert",
+  "version": "0.1.0",
+  "description": "Gilbert, compagnon de bureau pixel art",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "sprites": "node tools/gen-sprites.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "start": "npm run build && electron .",
+    "preview": "node scripts/build.mjs && node scripts/preview-server.mjs",
+    "test:brain": "node scripts/brain-test.mjs",
+    "test:memory": "esbuild scripts/memory-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --outfile=dist/memory-test.js --log-level=warning && electron dist/memory-test.js",
+    "test:assistant": "esbuild scripts/assistant-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/assistant-test.js --log-level=warning && electron dist/assistant-test.js",
+    "test:calendar": "node scripts/calendar-test.ts && node scripts/calendar-auth-test.ts",
+    "test:brief": "esbuild scripts/brief-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/brief-test.js --log-level=warning && electron dist/brief-test.js",
+    "test:vision": "esbuild scripts/vision-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/vision-test.js --log-level=warning && mkdir -p dist/vision && cp src/main/vision/*.js src/main/vision/*.ps1 dist/vision/ && electron dist/vision-test.js",
+    "test:music": "esbuild scripts/music-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/music-test.js --log-level=warning && mkdir -p dist/vision && cp src/main/vision/*.js src/main/vision/*.ps1 dist/vision/ && electron dist/music-test.js",
+    "dist:mac": "npm run build && node scripts/dmg-background.mjs && electron-builder --mac && node scripts/installer-icon.mjs",
+    "dist:win": "npm run build && electron-builder --win",
+    "test:features": "esbuild scripts/features-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/features-test.js --log-level=warning && electron dist/features-test.js",
+    "test:voice": "esbuild scripts/voice-test.ts --bundle --platform=node --format=cjs --external:electron --external:@huggingface/transformers --outfile=dist/voice-test.js --log-level=warning && electron dist/voice-test.js",
+    "test:extras": "esbuild scripts/extras-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/extras-test.js --log-level=warning && electron dist/extras-test.js"
+  },
+  "devDependencies": {
+    "@fontsource/bytesized": "^5.3.0",
+    "@fontsource/dotgothic16": "^5.3.1",
+    "@fontsource/jersey-10": "^5.3.0",
+    "@fontsource/pixelify-sans": "^5.3.0",
+    "@fontsource/press-start-2p": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0",
+    "@fontsource/tiny5": "^5.3.0",
+    "@fontsource/vt323": "^5.3.0",
+    "@types/mailparser": "^3.9.0",
+    "@types/node": "^26.6.5",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
+    "ical.js": "^2.2.1",
+    "imapflow": "^2.9.1",
+    "mailparser": "^3.12.4",
+    "node-llama-cpp": "^3.22.2"
+  },
+  "author": "Jules Balzarini",
+  "build": {
+    "appId": "app.gilbert.desktop",
+    "productName": "Gilbert",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/*-test.js",
+      "!dist/**/*.map",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "dist/vision/**",
+      "node_modules/@img/**",
+      "node_modules/@node-llama-cpp/**",
+      "node_modules/node-llama-cpp/**",
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSAppleEventsUsageDescription": "Gilbert pilote Spotify ou Musique quand tu le lui demandes (lecture, pause, suivant), voit ce qui joue, et demande au Finder où est son icône sur le bureau (pour en sortir et y rentrer).",
+        "NSMicrophoneUsageDescription": "Gilbert écoute tes notes vocales (bouton micro) et les transcrit sur ton ordinateur ; rien n'est envoyé ailleurs."
+      }
+    },
+    "dmg": {
+      "title": "Gilbert",
+      "icon": "assets/installer.icns",
+      "background": "assets/dmg-background.png",
+      "window": {
+        "width": 540,
+        "height": 360
+      },
+      "iconSize": 112,
+      "contents": [
+        {
+          "x": 270,
+          "y": 150,
+          "type": "file"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Gilbert",
+      "createDesktopShortcut": "always",
+      "installerIcon": "assets/installer.ico"
+    }
+  }
+}

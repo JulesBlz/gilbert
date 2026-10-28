@@ -1,0 +1,190 @@
+:root {
+  --ink: #2b1d14;
+  --paper: #fff6e3;
+  --px: 3px;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* aperçu navigateur : un faux fond de bureau pour voir Gilbert */
+body.preview {
+  background: #4a5a78;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+#stage.over { cursor: grab; }
+#stage.dragging { cursor: grabbing; }
+
+/* bulle pixel : bordure faite de 4 ombres pour obtenir des coins crantés */
+.bubble {
+  position: fixed;
+  left: 0;
+  top: 0;
+  max-width: 300px;
+  padding: 8px 12px 9px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Jersey 10', ui-monospace, monospace;
+  font-size: 20px;
+  line-height: 1.1;
+  -webkit-font-smoothing: none;
+  box-shadow:
+    0 calc(-1 * var(--px)) 0 0 var(--ink),
+    0 var(--px) 0 0 var(--ink),
+    calc(-1 * var(--px)) 0 0 0 var(--ink),
+    var(--px) 0 0 0 var(--ink);
+  cursor: pointer;
+  transition: opacity 0.25s steps(3);
+}
+
+.bubble[hidden] { display: none; }
+.bubble.fading { opacity: 0; }
+
+.bubble-text .rest { visibility: hidden; }
+
+/* boutons de choix dans la bulle */
+.bubble.long { max-width: 420px; }
+.bubble-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+.bubble-actions[hidden] { display: none; }
+.bubble-actions button {
+  font: inherit;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  padding: 3px 10px 4px;
+  cursor: pointer;
+}
+.bubble-actions button + button {
+  color: var(--ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+/* champ de discussion, même style que la bulle */
+.chat {
+  width: 280px;
+  cursor: text;
+}
+.chat input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  caret-color: var(--ink);
+}
+.chat input::placeholder { color: #8f857a; }
+.chat-prompt {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 2px dotted #c9bfb2;
+}
+.chat-prompt[hidden] { display: none; }
+.chat-row { display: flex; align-items: center; gap: 6px; }
+/* trois petits points pixel, discrets */
+.chat-more {
+  flex: none;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+.chat-more i {
+  position: absolute;
+  left: 3px;
+  top: 9px;
+  width: 3px;
+  height: 3px;
+  background: #b3a99c;
+  box-shadow: 6px 0 0 #b3a99c, 12px 0 0 #b3a99c;
+}
+.chat-more:hover i { background: var(--ink); box-shadow: 6px 0 0 var(--ink), 12px 0 0 var(--ink); }
+
+/* petite queue en escalier, 4×3 « pixels » de 3 px */
+.bubble-tail {
+  position: absolute;
+  top: 100%;
+  left: var(--tail-x, 50%);
+  width: 12px;
+  height: 9px;
+  margin-left: -6px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3' shape-rendering='crispEdges'%3E%3Cpath fill='%232b1d14' d='M0 0h1v3H0zM3 0h1v1H3zM2 1h1v1H2zM1 2h1v1H1z'/%3E%3Cpath fill='%23fff6e3' d='M1 0h2v1H1zM1 1h1v1H1z'/%3E%3C/svg%3E") no-repeat;
+  background-size: 100% 100%;
+}
+
+/* bulle sous la queue qui pend : la pointe regarde vers le haut */
+.bubble.below .bubble-tail {
+  top: auto;
+  bottom: 100%;
+  transform: scaleY(-1);
+}
+
+/* vietnamien : Jersey 10 n'a pas les accents empilés (ệ, ữ…) ; VT323, pixel lui aussi, les a */
+html[lang="vi"] .bubble, html[lang="vi"] .chat {
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 23px;
+  line-height: 1.05;
+}
+
+/* session de travail : petit compte à rebours pixel au-dessus de la tête */
+.focus-tag {
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 1px 6px 2px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'Jersey 10', ui-monospace, monospace;
+  font-size: 18px;
+  line-height: 1;
+  -webkit-font-smoothing: none;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.focus-tag[hidden] { display: none; }
+
+/* micro : un micro pixel (capsule à grille, pied) ; rouge et qui pulse pendant l'enregistrement */
+.chat-mic {
+  flex: none;
+  width: 18px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: #b3a99c;
+  display: grid;
+  place-items: center;
+}
+.chat-mic svg { display: block; fill: currentColor; }
+.chat-mic:hover { color: var(--ink); }
+.chat-mic.recording { color: #c2463c; animation: mic 0.8s steps(2) infinite; }
+.chat-mic.busy { color: #9a7b2c; }
+@keyframes mic { 50% { opacity: 0.4; } }
+/* ce que Whisper entend, écrit au fil de la voix */
+.chat input.live { color: #8a8074; }

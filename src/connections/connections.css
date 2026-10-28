@@ -1,0 +1,27 @@
+/* complète carnet.css (même style pixel) */
+
+.status { margin: -4px 0 12px; font-size: 20px; color: var(--muted); }
+.status::before { content: '■ '; }
+.status.on { color: #3f7d4a; }
+.status.connecting { color: #9a7b2c; }
+.status.error { color: var(--danger); }
+
+.help {
+  font-size: 20px;
+  color: var(--muted);
+  background: var(--paper);
+  padding: 8px 10px;
+  margin: 4px 0 12px;
+}
+.help p { margin: 0 0 3px; }
+.help a { color: var(--ink); }
+
+details { margin-bottom: 12px; }
+summary { cursor: pointer; color: var(--muted); font-size: 20px; margin-bottom: 8px; }
+
+.actions { display: flex; gap: 10px; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+.result { font-size: 20px; margin: 10px 0 0; min-height: 1em; }
+.result.ok { color: #3f7d4a; }
+.result.ko { color: var(--danger); }
