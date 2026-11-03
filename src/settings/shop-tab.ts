@@ -13,21 +13,21 @@ const T = {
     title: 'La boutique', hint: 'Passe la souris sur un objet pour le lui faire essayer.',
     wallet: (n: number) => `${n} gland${n > 1 ? 's' : ''}`,
     furs: 'Pelages', accessories: 'Accessoires',
-    wearing: 'Porté', wear: 'Porter', remove: 'Retirer', buy: 'Acheter', sure: 'Sûr ?', missing: (n: number) => `Il manque ${n}`,
+    wearing: 'Sélectionné', wear: 'Sélectionner', remove: 'Cliquer pour retirer', buy: 'Acheter', sure: 'Sûr ?', missing: (n: number) => `Il manque ${n}`,
     free: 'Offert', slotFur: 'Pelage', slotAcc: 'Accessoire', collection: 'Collection', none: '—',
   },
   en: {
     title: 'The shop', hint: 'Hover over an item to have him try it on.',
     wallet: (n: number) => `${n} acorn${n > 1 ? 's' : ''}`,
     furs: 'Fur', accessories: 'Accessories',
-    wearing: 'Wearing', wear: 'Wear', remove: 'Take off', buy: 'Buy', sure: 'Sure?', missing: (n: number) => `${n} short`,
+    wearing: 'Selected', wear: 'Select', remove: 'Click to take off', buy: 'Buy', sure: 'Sure?', missing: (n: number) => `${n} short`,
     free: 'Free', slotFur: 'Fur', slotAcc: 'Accessory', collection: 'Collection', none: '—',
   },
   vi: {
     title: 'Cửa hàng', hint: 'Rê chuột lên một món để tớ mặc thử.',
     wallet: (n: number) => `${n} quả sồi`,
     furs: 'Bộ lông', accessories: 'Phụ kiện',
-    wearing: 'Đang mặc', wear: 'Mặc', remove: 'Cởi ra', buy: 'Mua', sure: 'Chắc chưa?', missing: (n: number) => `Thiếu ${n}`,
+    wearing: 'Đã chọn', wear: 'Chọn', remove: 'Bấm để cởi ra', buy: 'Mua', sure: 'Chắc chưa?', missing: (n: number) => `Thiếu ${n}`,
     free: 'Miễn phí', slotFur: 'Bộ lông', slotAcc: 'Phụ kiện', collection: 'Bộ sưu tập', none: '—',
   },
 };
@@ -118,9 +118,11 @@ export function renderShop(el: HTMLElement, state: PrefsState, lang: Lang, act: 
     const short = item.price.acorns - w.acorns;
     const b = h<HTMLButtonElement>('button', {});
     if (worn) {
-      b.textContent = t.remove;
-      b.className = 'ghost';
-      b.addEventListener('click', () => act('wear', item.id));
+      // le même bouton, au même endroit : plein, c'est l'état « sélectionné » (un accessoire se retire en recliquant)
+      b.textContent = t.wearing;
+      b.className = 'on';
+      if (item.kind === 'accessory') { b.title = t.remove; b.addEventListener('click', () => act('wear', item.id)); }
+      else b.setAttribute('aria-pressed', 'true');
     } else if (owned) {
       b.textContent = t.wear;
       b.addEventListener('click', () => act('wear', item.id));
@@ -151,8 +153,8 @@ export function renderShop(el: HTMLElement, state: PrefsState, lang: Lang, act: 
       });
     }
     const c = h('div', { className: `item${worn ? ' worn' : ''}${owned ? ' owned' : ''}` }, thumb, h('b', {}, item.name[lang]),
-      owned ? h('span', { className: 'price' }, worn ? '' : '✓') : price(item, t),
-      worn && item.kind === 'fur' ? h('span', { className: 'tag on' }, t.wearing) : b);
+      owned ? h('span', { className: 'price' }) : price(item, t),
+      b);
     c.addEventListener('mouseenter', () => tryOn(trial));
     c.addEventListener('mouseleave', () => tryOn(s.skin));
     return c;

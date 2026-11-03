@@ -24,7 +24,8 @@
     "test:features": "esbuild scripts/features-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/features-test.js --log-level=warning && electron dist/features-test.js",
     "test:voice": "esbuild scripts/voice-test.ts --bundle --platform=node --format=cjs --external:electron --external:@huggingface/transformers --outfile=dist/voice-test.js --log-level=warning && electron dist/voice-test.js",
     "test:extras": "esbuild scripts/extras-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/extras-test.js --log-level=warning && electron dist/extras-test.js",
-    "release": "npm version patch -m \"Gilbert %s\" && git push --follow-tags"
+    "release": "npm version patch -m \"Gilbert %s\" && git push --follow-tags",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "devDependencies": {
     "@fontsource/bytesized": "^5.3.0",
@@ -126,6 +127,30 @@
       "createDesktopShortcut": "always",
       "installerIcon": "assets/installer.ico"
     },
-    "publish": null
-  }
+    "publish": null,
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "icon": "assets/icon.png",
+      "maintainer": "Jules Balzarini <66307100+JulesBlz@users.noreply.github.com>",
+      "synopsis": "Gilbert, un raton laveur local sur le bureau",
+      "description": "Gilbert est un raton laveur qui vit sur ton écran : il discute, rappelle tes échéances, trie tes mails et te garde concentré, avec un modèle de langage local.",
+      "artifactName": "Gilbert-${version}-linux-x64.${ext}"
+    }
+  },
+  "homepage": "https://github.com/JulesBlz/gilbert",
+  "desktopName": "gilbert.desktop"
 }

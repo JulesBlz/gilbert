@@ -1,5 +1,5 @@
 // Secrets (mot de passe d'application du mail) : chiffrés avec la clé du trousseau du système
-// (Trousseau macOS, DPAPI sous Windows) via safeStorage, puis rangés dans secrets.json.
+// (Trousseau macOS, DPAPI sous Windows, gnome-keyring ou KWallet sous Linux) via safeStorage, puis rangés dans secrets.json.
 
 import { app, safeStorage } from 'electron';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -26,7 +26,7 @@ export function getSecret(key: string): string {
 }
 
 export function setSecret(key: string, value: string) {
-  if (!safeStorage.isEncryptionAvailable()) throw new Error('le chiffrement du système est indisponible');
+  if (!safeStorage.isEncryptionAvailable()) throw new Error(process.platform === 'linux' ? 'le chiffrement du système est indisponible (installe un trousseau : gnome-keyring ou KWallet)' : 'le chiffrement du système est indisponible');
   const all = load();
   if (value) all[key] = safeStorage.encryptString(value).toString('base64');
   else delete all[key];

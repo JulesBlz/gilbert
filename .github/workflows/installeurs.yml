@@ -1,4 +1,4 @@
-# Construit les installeurs Mac (.dmg) et Windows (.exe), gratuitement sur GitHub.
+# Construit les installeurs Mac (.dmg), Windows (.exe) et Linux (.AppImage, .deb), gratuitement sur GitHub.
 # Lancé à chaque étiquette « v… » (ex. v0.2.0) : les installeurs sont joints à la release.
 # Lancé à la main (onglet Actions) : ils sont téléchargeables dans le résumé du run.
 # Chaque système construit le sien : llama.cpp est livré en binaires propres à chaque plateforme.
@@ -27,6 +27,11 @@ jobs:
           - os: windows-latest
             target: win
             files: release/*.exe
+          - os: ubuntu-latest
+            target: linux
+            files: |
+              release/*.AppImage
+              release/*.deb
     runs-on: ${{ matrix.os }}
     env:
       # y a-t-il une clé de signature des mises à jour (secret UPDATE_KEY) ? Sans elle, pas d'archive de mise à jour, mais les installeurs sortent quand même.

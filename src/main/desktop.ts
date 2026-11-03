@@ -180,6 +180,8 @@ export async function finishInstall() {
     await binShortcutOnWindows();
     return { done: true };
   }
+  // Linux : pas de poubelle sur le bureau, l'appli se lance simplement
+  if (process.platform !== 'darwin') return { done: true };
   // l'ancienne copie rangée dans Applications
   await shell.trashItem('/Applications/Gilbert.app').catch(() => {});
   await setHomeIcon();

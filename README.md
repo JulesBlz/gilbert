@@ -2,7 +2,7 @@
 
 **A pixel-art desktop companion whose intelligence runs entirely on your own computer.**
 
-Gilbert is a raccoon who lives on your screen (macOS and Windows). He chats with you, reminds you of deadlines, triages your email, delivers a morning briefing and helps you stay focused. All of it is powered by a local language model: no account, no subscription, no cloud for his replies.
+Gilbert is a raccoon who lives on your screen (macOS and Windows; Linux in a reduced, experimental form). He chats with you, reminds you of deadlines, triages your email, delivers a morning briefing and helps you stay focused. All of it is powered by a local language model: no account, no subscription, no cloud for his replies.
 
 ## Features
 
@@ -45,7 +45,7 @@ The project is roughly 10,000 lines of TypeScript with no UI framework: windows 
 
 ## Getting started
 
-Requirements: Node.js (tested with version 26) on macOS or Windows. The first launch downloads the language model (5 to 7 GB depending on the machine's memory) and the speech model (about 250 MB).
+Requirements: Node.js (tested with version 26) on macOS, Windows or Linux. The first launch downloads the language model (5 to 7 GB depending on the machine's memory) and the speech model (about 250 MB).
 
 ```bash
 npm install
@@ -61,6 +61,7 @@ npm start
 | `npm run sprites` | Reassemble Gilbert's animation sheet |
 | `npm run dist:mac` | Build the macOS installer (`release/Gilbert-<version>-arm64.dmg`) |
 | `npm run dist:win` | Build the Windows installer (run it on Windows) |
+| `npm run dist:linux` | Build the Linux packages (`.AppImage` and `.deb`, x64; run it on Linux) |
 
 ### Tests
 
@@ -68,7 +69,7 @@ Behavioural tests run against the real model rather than mocks, to check what Gi
 
 ## Installing and sharing
 
-Download the installer from the [Releases page](https://github.com/JulesBlz/gilbert/releases): `Gilbert-<version>-arm64.dmg` for macOS, `Gilbert.Setup.<version>.exe` for Windows (x64).
+Download the installer from the [Releases page](https://github.com/JulesBlz/gilbert/releases): `Gilbert-<version>-arm64.dmg` for macOS, `Gilbert.Setup.<version>.exe` for Windows (x64), `Gilbert-<version>-linux-x64.AppImage` or `.deb` for Linux (x64).
 
 Requirements: a Mac with Apple Silicon (M1 or newer), about 8 GB of free disk space (the app is about 700 MB, plus the language model), and an internet connection for the first launch.
 
@@ -79,6 +80,15 @@ Requirements: a Mac with Apple Silicon (M1 or newer), about 8 GB of free disk sp
 5. Next time, double-click the dumpster on the desktop. To quit, drop Gilbert on it.
 
 Each person gets their own Gilbert: brain, memory and connections stay on their machine. Build the installer yourself with `npm run dist:mac` (output in `release/`). Windows: the `.exe` installer (built on Windows, or by the GitHub workflow) creates a desktop shortcut; SmartScreen asks for a confirmation because the app is not signed either; the Windows code is less tested.
+
+### Linux (experimental)
+
+Run the `.AppImage` (`chmod +x`, then double-click or run it) or install the `.deb` (`sudo apt install ./Gilbert-<version>-linux-x64.deb`). The chat, memory, tasks, mail, calendar, projects and shop work as elsewhere. Not available on Linux yet: reading the screen (and what depends on it: typo hints, project notes from the screen, tidying), music control, messaging badges, the dumpster icon on the desktop and automatic updates.
+
+- The overlay window needs a compositing desktop and works best on X11 (or XWayland): on Wayland, apps cannot position themselves or stay above others, so Gilbert may not perch on the menu window as intended.
+- Saving the mail password needs a system keyring (`gnome-keyring` or KWallet); without one, Gilbert says so instead of storing it in clear.
+- In an AppImage the Chromium sandbox helper cannot be used, so Gilbert disables it there (windows keep context isolation and load only local files); the `.deb` keeps it.
+- Written without a Linux machine to test on: feedback and fixes are welcome.
 
 ### Updates (maintainer)
 
@@ -96,7 +106,7 @@ Pushing a version tag (`npm run release` bumps the patch version, tags and pushe
 
 ## Project status
 
-A personal project at version 0.2, tested on macOS (Apple Silicon). The Windows code (vision, music, installer) is written but less thoroughly tested. There is no automated test pipeline, since the tests need a real model of several gigabytes. No licence has been chosen yet.
+A personal project at version 0.2, tested on macOS (Apple Silicon). The Windows code (vision, music, installer) is written but less thoroughly tested, and the Linux build has never been run on a real Linux machine. There is no automated test pipeline, since the tests need a real model of several gigabytes. No licence has been chosen yet.
 
 ## Credits
 

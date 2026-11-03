@@ -204,6 +204,10 @@ async function splitIntoSteps(task: Task) {
 
 /** « Essayer » dans le guide : il regarde la fenêtre que tu lui montres (ou demande la permission) */
 function tryVision() {
+  if (!visionSupported()) {
+    assistant.tell(say3('Je ne sais pas encore lire l’écran sur ce système.', 'I can’t read the screen on this system yet.', 'Tớ chưa đọc được màn hình trên hệ thống này.'));
+    return;
+  }
   if (!settings.vision || permission() !== 'granted') return setVision(true);
   assistant.tell(say3(
     'Va sur la fenêtre de ton choix : je regarde dans 5 secondes.',
@@ -905,6 +909,14 @@ async function lookForUpdate() {
 }
 
 // ---------- démarrage ----------
+
+// Linux : fenêtre transparente (il faut un compositeur) ; dans un AppImage le bac à sable SUID de Chromium n'est pas
+// utilisable (et certaines distributions interdisent le mode non privilégié) : on le coupe là, les fenêtres gardent
+// leur isolation (contextIsolation, sandbox) et ne chargent que des fichiers locaux
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-transparent-visuals');
+  if (process.env.APPIMAGE) app.commandLine.appendSwitch('no-sandbox');
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
