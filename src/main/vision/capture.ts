@@ -2,7 +2,8 @@
 // La lecture se fait avec la reconnaissance de texte du système (Vision sur Mac, Windows.Media.Ocr
 // sur Windows), sur la machine. L'image est effacée aussitôt lue, le texte n'est jamais enregistré.
 
-import { app, desktopCapturer, screen, systemPreferences, type BrowserWindow, type Rectangle } from 'electron';
+import { app, desktopCapturer, screen, systemPreferences, type BrowserWindow, type NativeImage, type Rectangle } from 'electron';
+import { normalize } from '../brain/detect';
 import { execFile } from 'node:child_process';
 import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -65,8 +66,20 @@ export async function frontWindow(): Promise<FrontWindow | null> {
  * capture le temps de la prise, pour qu'il ne lise pas ses propres bulles.
  */
 export async function readWindow(front: FrontWindow, own: BrowserWindow | null): Promise<string[]> {
+  return (await lookWindow(front, own)).lines;
+}
+
+/** Une ligne lue, avec sa place dans l'image (en fractions de 0 à 1, origine en haut à gauche) */
+interface Seen { text: string; x: number; y: number; w: number; h: number }
+
+/**
+ * Comme `readWindow`, mais garde l'image : `zoom(passage)` relit en grand l'endroit où se trouve le
+ * passage (le même texte, agrandi trois fois), pour vérifier ce qu'on avait lu en petit.
+ */
+export async function lookWindow(front: FrontWindow, own: BrowserWindow | null): Promise<{ lines: string[]; zoom: (quote: string) => Promise<string[] | null> }> {
+  const none = { lines: [] as string[], zoom: async () => null };
   const b = front.bounds;
-  if (!b) return [];
+  if (!b) return none;
   const display = screen.getDisplayMatching(b);
   const size = { width: Math.round(display.bounds.width * display.scaleFactor), height: Math.round(display.bounds.height * display.scaleFactor) };
   own?.setContentProtection(true);
@@ -78,7 +91,7 @@ export async function readWindow(front: FrontWindow, own: BrowserWindow | null):
     own?.setContentProtection(false);
   }
   const source = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
-  if (!source) return [];
+  if (!source) return none;
   const shot = source.thumbnail;
   const scale = shot.getSize().width / display.bounds.width;
   const x = Math.max(0, Math.round((b.x - display.bounds.x) * scale));
@@ -88,22 +101,44 @@ export async function readWindow(front: FrontWindow, own: BrowserWindow | null):
     width: Math.min(Math.round(b.width * scale), shot.getSize().width - x),
     height: Math.min(Math.round(b.height * scale), shot.getSize().height - y),
   };
-  if (crop.width < 40 || crop.height < 40) return [];
-  return ocr(shot.crop(crop).toPNG());
+  if (crop.width < 40 || crop.height < 40) return none;
+  const image = shot.crop(crop);
+  const seen = await ocrBoxes(image.toPNG());
+  return { lines: seen.map((l) => l.text), zoom: (quote) => zoomOn(image, seen, quote) };
+}
+
+/** Relit en grand la ligne qui contient `quote` (avec la ligne d'avant et celle d'après) */
+async function zoomOn(image: NativeImage, seen: Seen[], quote: string): Promise<string[] | null> {
+  const q = normalize(quote);
+  if (!q) return null;
+  const i = seen.findIndex((l) => normalize(l.text).includes(q));
+  if (i < 0) return null;
+  const { width, height } = image.getSize();
+  const l = seen[i];
+  const x0 = Math.max(0, l.x - 0.02), x1 = Math.min(1, l.x + l.w + 0.02);
+  const y0 = Math.max(0, l.y - l.h * 1.4), y1 = Math.min(1, l.y + l.h * 2.4);
+  const part = image.crop({ x: Math.round(x0 * width), y: Math.round(y0 * height), width: Math.max(8, Math.round((x1 - x0) * width)), height: Math.max(8, Math.round((y1 - y0) * height)) });
+  const big = part.resize({ width: Math.min(part.getSize().width * 3, 3200), quality: 'best' });
+  const lines = await ocr(big.toPNG());
+  return lines.length ? lines : null;
 }
 
 /** Texte d'une image PNG, ligne par ligne, de haut en bas */
 export async function ocr(png: Buffer): Promise<string[]> {
+  return (await ocrBoxes(png)).map((l) => l.text);
+}
+
+async function ocrBoxes(png: Buffer): Promise<Seen[]> {
   const file = path.join(app.getPath('temp'), `gilbert-look-${process.pid}.png`);
   writeFileSync(file, png);
   try {
     const out = JSON.parse(await runScript(process.platform === 'darwin' ? 'mac-ocr.js' : 'win-ocr.ps1', [file])) as {
-      lines: (string | { text: string; x: number; y: number; h: number })[];
+      lines: (string | { text: string; x: number; y: number; w?: number; h: number })[];
     };
-    const lines = out.lines.map((l) => (typeof l === 'string' ? { text: l, x: 0, y: 0, h: 0 } : l));
+    const lines: Seen[] = out.lines.map((l) => (typeof l === 'string' ? { text: l, x: 0, y: 0, w: 1, h: 0 } : { ...l, w: l.w ?? 1 - l.x }));
     // même ligne visuelle (hauteurs proches) : de gauche à droite
     lines.sort((a, b) => (Math.abs(a.y - b.y) < Math.max(a.h, b.h) * 0.5 ? a.x - b.x : a.y - b.y));
-    return lines.map((l) => l.text.trim()).filter(Boolean);
+    return lines.map((l) => ({ ...l, text: l.text.trim() })).filter((l) => l.text);
   } catch {
     return [];
   } finally {

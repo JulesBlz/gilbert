@@ -42,7 +42,7 @@ const GRAVITY = 2400;          // px/s², chutes
 const JUMP = { duration: 0.6, arrive: 220 };
 // bond vers sa fenêtre (ou pour en redescendre) : durée selon la distance, hauteur de la courbe
 // au-dessus du point le plus haut (pixels de Gilbert)
-const LEAP = { base: 0.5, perPx: 1 / 2800, arc: 14 };
+const LEAP = { base: 0.4, perPx: 1 / 3600, arc: 14 };
 // sa poubelle : saut du couvercle (pixels de Gilbert, par s), et les temps de la sortie (s)
 // Finder met un à deux secondes à redessiner l'icône du bureau : la nôtre reste donc affichée (opaque) un bon moment
 // après le changement, et le départ attend avant de s'arrêter.
@@ -139,16 +139,17 @@ export class Pet {
   /** Fin de la session de travail en cours (ms), 0 sinon */
   focusEnds = 0;
   /** Sa fenêtre ouverte : il s'assoit sur son bord du haut, de `x0` à `x1`, à la hauteur `y` */
-  private perch: { x0: number; x1: number; y: number } | null = null;
+  /** `facing` : de quel côté il regarde quand il se tient à un point précis (la Discussion : vers ses bulles) */
+  private perch: { x0: number; x1: number; y: number; facing?: 1 | -1 } | null = null;
   /** Le bond en cours vers la fenêtre (ou pour en redescendre) ; `resume` : l'état à retrouver après */
   private leap: { fromX: number; fromY: number; toX: number; toY: number; t: number; duration: number; resume: State | null; lift?: number; ease?: 'in' | 'out' } | null = null;
   /**
    * Sa poubelle, quand elle est là : `out` il en sort, `standby` elle attend qu'on l'y lâche (on le
    * tient), `in` il y saute pour qu'on quitte. `front` : il est (en partie) dedans, caché derrière son
-   * bord avant. `glow` : elle s'éclaire quand il approche. Sur le bureau, c'est l'icône de l'appli (on
+   * bord avant. `shake` : la benne tremble (on en dessine alors une copie). Sur le bureau, c'est l'icône de l'appli (on
    * ne dessine rien dessus) ; sinon (Windows, développement), il dessine la sienne.
    */
-  private bin: { box: DumpBox; mode: 'out' | 'standby' | 'in'; t: number; alpha: number; popped: boolean; front: boolean; glow: number; shake: number } | null = null;
+  private bin: { box: DumpBox; mode: 'out' | 'standby' | 'in'; t: number; alpha: number; popped: boolean; front: boolean; shake: number; shakeAt: number } | null = null;
   /** Il est dans sa poubelle : on peut quitter */
   onQuit: (() => void) | null = null;
   /** Son icône de poubelle sur le bureau, s'il en a une (sinon il dessine la sienne) */
@@ -157,8 +158,6 @@ export class Pet {
   onPulledDown: (() => void) | null = null;
   /** On vient de l'attraper : on relit où est son icône du bureau (elle a pu bouger) */
   onGrab: (() => void) | null = null;
-  /** Gland qui tombe à côté de lui à la fin d'une session */
-  private drop: { grid: string[]; x: number; y: number; vy: number; until: number } | null = null;
   /** Point au-dessus de la tête, pour y accrocher bulle et champ de saisie */
   anchor = { x: 0, y: 0 };
 
@@ -197,12 +196,13 @@ export class Pet {
   update(dt: number) {
     this.t += dt;
     this.updateBin(dt);
-    if (this.drop) {
-      const d = this.drop;
-      d.vy += GRAVITY * dt;
-      d.y = Math.min(d.y + d.vy * dt, this.ground - 10 * this.scale);
-      if (Date.now() > d.until) this.drop = null;
+    if (this.pendingPerch && !this.working && ['idle', 'walk', 'happy', 'land'].includes(this.state)) {
+      const p = this.pendingPerch;
+      this.pendingPerch = null;
+      this.setPerch(p.at);
     }
+    // à son point de la Discussion, il regarde vers ses bulles (à sa droite)
+    if (this.perch?.facing && !['leap', 'drag', 'fly', 'fall', 'jump', 'crouch', 'binned'].includes(this.state)) this.dir = this.perch.facing;
     switch (this.state) {
       case 'work':
         // il bosse : pas question d'aller se cacher ni de se promener
@@ -328,7 +328,11 @@ export class Pet {
       return;
     }
     this.dir = d > 0 ? 1 : -1;
-    this.x += this.dir * Math.min(Math.abs(d), WALK.speed * this.scale * dt);
+    // un pas toutes les 3 frames : il pousse au milieu du pas (le corps monte, il accélère) et ralentit à
+    // la pose du pied ; il démarre et s'arrête en douceur, au lieu de glisser à vitesse constante
+    const step = Math.abs(Math.sin((Math.PI * this.t) / (WALK.frame * 3)));
+    const ease = Math.min(1, 0.35 + this.t / 0.25, 0.35 + Math.abs(d) / (6 * this.scale));
+    this.x += this.dir * Math.min(Math.abs(d), WALK.speed * this.scale * dt * (0.55 + 0.85 * step) * ease);
   }
 
   /** Un bond (8 frames : appel, vol, réception) ; on enchaîne jusqu'à la cible */
@@ -465,6 +469,7 @@ export class Pet {
       return BOUNCE.heights[i] * s;
     }
     if (this.state === 'alert' && this.t < 0.6) return Math.abs(Math.sin((this.t / 0.3) * Math.PI)) * 4 * s;
+    if (this.state === 'walk' && this.move === 'walk') return Math.round(Math.abs(Math.sin((Math.PI * this.t) / (WALK.frame * 3))) * 1.6) * s;
     if (this.state === 'walk' && this.move === 'hop') {
       const air = this.hopAir();
       if (air > 0 && air < 1) return Math.sin(air * Math.PI) * HOP.height * s;
@@ -534,7 +539,6 @@ export class Pet {
 
     const frame = this.frame();
     drawFrame(ctx, frame, left, top, s, flip);
-    if (this.drop) drawGrid(ctx, this.drop.grid, Math.round(this.drop.x / s) * s, Math.round(this.drop.y / s) * s, s);
 
     const headX = flip ? SIZE - 1 - HEAD_CENTER : HEAD_CENTER;
     if (this.state === 'alert') {
@@ -543,12 +547,13 @@ export class Pet {
     }
 
     this.anchor = { x: left + headX * s, y: top + HEAD_TOP * s };
-    this.bubble.place(this.anchor.x, this.anchor.y);
+    // tout en haut de l'écran, sa bulle passe sous lui ou à côté
+    this.bubble.place(this.anchor.x, this.anchor.y, false, { bottom: top + this.size, half: 18 * s });
 
-    // la zone à effacer à la frame suivante : le sprite, le « ! » au-dessus, l'ombre et le gland
-    // tombé en dessous (le sol peut être au-dessus de lui pendant un bond : on prend le plus bas)
+    // la zone à effacer à la frame suivante : le sprite, le « ! » au-dessus, l'ombre en dessous
+    // (le sol peut être au-dessus de lui pendant un bond : on prend le plus bas)
     const y = top - 26 * s;
-    const bottom = Math.max(top + this.size, shadow ? this.ground : 0, this.drop ? this.drop.y + 12 * s : 0) + 4 * s;
+    const bottom = Math.max(top + this.size, shadow ? this.ground : 0) + 4 * s;
     return { x: left - 8 * s, y, w: this.size + 22 * s, h: bottom - y };
   }
 
@@ -759,19 +764,16 @@ export class Pet {
     this.setState('work');
   }
 
-  /** Fin de session : content, et un gland (ou un gland doré) qui tombe à côté de lui */
-  endWork(acorn: string[] | null) {
+  /** Fin de session : content (les glands tombent à part, « rain ») */
+  endWork(done: boolean) {
     this.focusEnds = 0;
     if (!this.working) return;
-    if (!acorn) {
+    if (!done) {
       this.toIdle();
       return;
     }
-    const s = this.scale;
     this.setState('happy');
     sfx.hop();
-    const { left, top } = this.rect();
-    this.drop = { grid: acorn, x: left + this.size - 6 * s, y: top + (HEAD_TOP + 8) * s, vy: -260, until: Date.now() + 9000 };
   }
 
   /** Le champ de discussion est ouvert : Gilbert t'écoute */
@@ -828,13 +830,23 @@ export class Pet {
    * Sa fenêtre s'ouvre (`at` : son bord du haut, en px de l'écran de Gilbert) : il saute s'y asseoir.
    * Elle se ferme (`at` null) : il redescend d'un bond, et reprend ce qu'il faisait (écouter, réfléchir).
    */
-  setPerch(at: { x: number; y: number; width: number } | null) {
+  /** Un perchoir demandé en plein vol, à refaire une fois posé */
+  private pendingPerch: { at: { x: number; y: number; width: number; spot?: number } | null } | null = null;
+
+  setPerch(at: { x: number; y: number; width: number; spot?: number } | null) {
+    const orig = at;
+    // la fenêtre est si haut qu'il n'aurait pas la place d'y tenir debout : il reste au sol
+    if (at && at.y < this.size * 0.75) at = null;
     const margin = this.size / 2 + 4;
     if (at) {
-      const perch = { x0: at.x, x1: at.x + at.width, y: at.y };
+      // un point précis : il s'y tient, sans se promener ; sinon, tout le bord de la fenêtre
+      // ses pieds sur un multiple de sa taille de pixel (sinon il flotte de quelques pixels)
+      at = { ...at, y: Math.ceil(at.y / this.scale) * this.scale };
+      const perch = at.spot !== undefined ? { x0: at.spot - margin, x1: at.spot + margin, y: at.y, facing: 1 as const } : { x0: at.x, x1: at.x + at.width, y: at.y };
       const tx = Math.min(Math.max(this.x, perch.x0 + margin), perch.x1 - margin);
-      // en plein travail, attrapé ou en vol : il reste où il est
-      if (this.working || ['drag', 'fly', 'fall', 'crouch', 'jump', 'leap', 'listen', 'think'].includes(this.state)) return;
+      // en plein travail, attrapé ou en vol : il reste où il est, et la demande est refaite dès qu'il se pose
+      if (this.working || ['drag', 'fly', 'fall', 'crouch', 'jump', 'leap', 'listen', 'think'].includes(this.state)) { this.pendingPerch = { at: orig }; return; }
+      this.pendingPerch = null;
       this.perch = perch;
       if (this.onCeiling) {
         // caché en haut : il se laisse tomber droit dessus
@@ -1116,7 +1128,7 @@ export class Pet {
   }
 
   private newBin(mode: 'out' | 'standby' | 'in') {
-    this.bin = { box: this.spot(), mode, t: 0, alpha: mode === 'standby' ? 0 : 1, popped: false, front: mode === 'out', glow: 0, shake: 0 };
+    this.bin = { box: this.spot(), mode, t: 0, alpha: mode === 'standby' ? 0 : 1, popped: false, front: mode === 'out', shake: 0, shakeAt: 0 };
     return this.bin;
   }
 
@@ -1179,8 +1191,20 @@ export class Pet {
       sfx.thud();
       sfx.rattle();
       b.shake = BIN.shake;
+      b.shakeAt = b.t;
       setTimeout(() => this.onQuit?.(), BIN.quitAfter * 1000);
     };
+  }
+
+  /** Il va à pied jusqu'à `x` (pour ramasser un gland) */
+  walkTo(x: number) {
+    if (!['idle'].includes(this.state) || this.perch) return false;
+    this.targetX = Math.min(Math.max(x, this.size / 2), innerWidth - this.size / 2);
+    this.move = 'walk';
+    this.hopT = 0;
+    this.hopChain = false;
+    this.setState('walk');
+    return true;
   }
 
   /** Distance entre son corps et le bord de sa poubelle */
@@ -1225,37 +1249,27 @@ export class Pet {
       b.front = this.y > b.box.rim - 2 && Math.abs(this.x - b.box.x) < b.box.w / 2 + this.size * 0.2;
     } else {
       // on le tient : elle se montre (si on la dessine), et s'éclaire quand il approche
-      const near = this.dragging && this.toBin(b) < this.binReach(b) * 1.8;
-      b.glow = Math.min(1, Math.max(0, b.glow + (near ? dt * 6 : -dt * 5)));
       b.alpha = this.dragging ? Math.min(1, b.alpha + dt * 8) : Math.max(0, b.alpha - dt * 3);
-      if (!this.dragging && b.alpha <= 0 && b.glow <= 0) this.bin = null;
+      if (!this.dragging && b.alpha <= 0) this.bin = null;
     }
   }
 
-  /** Dessine sa poubelle (seulement si elle n'est pas déjà là, en icône) et son halo ; renvoie la zone touchée */
+  /** Dessine sa poubelle (seulement si elle n'est pas déjà là, en icône) ; renvoie la zone touchée */
   private drawBin(ctx: CanvasRenderingContext2D) {
     const b = this.bin!, x = b.box;
     // sur le bureau, sa vraie icône est dessous : on ne la double que le temps de la secousse
-    const art = !this.home || b.shake > 0, halo = b.glow > 0.01;
-    if (!art && !halo) return null;
+    if (this.home && b.shake <= 0) return null;
     ctx.save();
-    if (art) {
-      ctx.globalAlpha = b.alpha;
-      ctx.imageSmoothingEnabled = false;
-      const dx = b.shake > 0 ? Math.round(Math.sin(b.t * 70) * Math.min(1, b.shake * 4) * Math.max(2, x.size * 0.03)) : 0;
-      ctx.drawImage(dumpImg, x.left + dx, x.top, x.w, x.h);
+    ctx.globalAlpha = b.alpha;
+    let dx = 0;
+    if (this.home) {
+      // la copie apparaît et disparaît en fondu (sinon on verrait un à-coup entre elle et l'icône)
+      ctx.globalAlpha = Math.min(1, b.shake / 0.12, (b.t - b.shakeAt) / 0.12 + 0.01);
+      dx = Math.round(Math.sin(b.t * 70) * Math.min(1, b.shake * 4) * Math.max(2, x.size * 0.03));
     }
-    if (halo) {
-      const pulse = 0.75 + 0.25 * Math.sin(b.t * 8);
-      ctx.globalAlpha = b.glow * pulse;
-      ctx.strokeStyle = '#ffffff';
-      ctx.shadowColor = '#8fd6ff';
-      ctx.shadowBlur = 14;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.roundRect(x.left - 6, x.top - 6, x.w + 12, x.h + 12, 12);
-      ctx.stroke();
-    }
+    ctx.imageSmoothingEnabled = !!this.home;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(dumpImg, x.left + dx, x.top, x.w, x.h);
     ctx.restore();
     return { x: x.left - 28, y: x.top - 28, w: x.w + 56, h: x.h + 56 };
   }

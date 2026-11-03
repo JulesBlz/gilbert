@@ -28,7 +28,8 @@ function openPage(key: string, title: string, size: { width: number; height: num
     return;
   }
   const area = screen.getPrimaryDisplay().workArea;
-  const width = Math.min(size.width, area.width - 40), height = Math.min(size.height, area.height - 60);
+  // centrée, avec au moins 150 px au-dessus pour Gilbert, assis sur son bord du haut
+  const width = Math.min(size.width, area.width - 40), height = Math.min(size.height, area.height - 300);
   const win = new BrowserWindow({
     width,
     height,
@@ -40,7 +41,7 @@ function openPage(key: string, title: string, size: { width: number; height: num
     backgroundColor: '#00000000',
     hasShadow: false,
     resizable: false,
-    movable: false,
+    movable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -65,6 +66,8 @@ function openPage(key: string, title: string, size: { width: number; height: num
     app.focus({ steal: true });
   });
   win.once('show', () => watchers.get(key)?.(win.getBounds()));
+  // on la déplace : Gilbert la suit une fois qu'on l'a lâchée
+  win.on('moved', () => watchers.get(key)?.(win.getBounds()));
   win.on('closed', () => {
     windows.delete(key);
     watchers.get(key)?.(null);
@@ -72,4 +75,4 @@ function openPage(key: string, title: string, size: { width: number; height: num
   windows.set(key, win);
 }
 
-export const openSettings = (tab: SettingsTab = 'general') => openPage('settings', 'Gilbert', { width: 580, height: 780 }, tab);
+export const openSettings = (tab: SettingsTab = 'general') => openPage('settings', 'Gilbert', { width: 700, height: 780 }, tab);

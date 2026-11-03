@@ -30,6 +30,8 @@ function previewApi(): GilbertApi {
     quit: () => {},
     introDone: () => {},
     home: async () => null,
+    pendingAcorns: async () => ({ acorns: 0 }),
+    collectAcorns: () => {},
     tried: () => {},
     setIgnoreMouse: () => {},
     setFocus: () => {},
@@ -37,6 +39,8 @@ function previewApi(): GilbertApi {
     savePosition: () => {},
     onCommand: (cb) => { listener = cb; },
     brainStatus: async () => status,
+    brainModels: async () => [],
+    brainUse: () => {},
     brainDownload: () => {},
     brainAsk: (id, text) => {
       const words = `Tu m'as dit « ${text} ». Je suis un faux cerveau, mais je t'écoute.`.split(/(?= )/);

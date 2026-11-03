@@ -43,6 +43,7 @@ const T = {
     save: 'Tester et enregistrer',
     disconnect: 'Débrancher',
     testing: 'Test en cours…',
+    howTo: 'Comment faire ?',
     status: { off: 'Pas branché', connecting: 'Connexion…', on: 'Branché', error: 'Erreur' },
   },
   en: {
@@ -78,6 +79,7 @@ const T = {
     save: 'Test and save',
     disconnect: 'Disconnect',
     testing: 'Testing…',
+    howTo: 'How to?',
     status: { off: 'Not connected', connecting: 'Connecting…', on: 'Connected', error: 'Error' },
   },
   vi: {
@@ -113,6 +115,7 @@ const T = {
     save: 'Kiểm tra và lưu',
     disconnect: 'Ngắt kết nối',
     testing: 'Đang kiểm tra…',
+    howTo: 'Cách làm?',
     status: { off: 'Chưa kết nối', connecting: 'Đang kết nối…', on: 'Đã kết nối', error: 'Lỗi' },
   },
 };
@@ -183,7 +186,7 @@ function render(data: Awaited<ReturnType<ConnectionsApi['get']>>) {
   user.addEventListener('input', () => { user.dataset.touched = '1'; });
 
   const mailResult = h('p', { className: 'result' });
-  const saveMail = h<HTMLButtonElement>('button', { textContent: t.save });
+  const saveMail = h<HTMLButtonElement>('button', { className: 'primary', textContent: t.save });
   saveMail.addEventListener('click', async () => {
     saveMail.disabled = true;
     mailResult.className = 'result';
@@ -204,7 +207,7 @@ function render(data: Awaited<ReturnType<ConnectionsApi['get']>>) {
   const advanced = h('details', {}, h('summary', {}, t.advanced), field(t.host, host), field(t.port, port), field(t.user, user));
   mailStatus = statusLine(data.status.mail);
   const mailSection = h('section', {}, h('h2', {}, t.mail), mailStatus,
-    field(t.address, address), field(t.password, password), help, advanced,
+    field(t.address, address), field(t.password, password), h('details', {}, h('summary', {}, t.howTo), help), advanced,
     h('div', { className: 'actions' }, saveMail, disMail), mailResult);
 
   // ----- agenda -----
@@ -216,7 +219,7 @@ function render(data: Awaited<ReturnType<ConnectionsApi['get']>>) {
     h('div', { className: 'help' }, h('p', {}, t.calendarPrivateHelp)),
     field(t.calendarUser, calUser), field(t.calendarPassword, calPassword));
   const calResult = h('p', { className: 'result' });
-  const saveCal = h<HTMLButtonElement>('button', { textContent: t.save });
+  const saveCal = h<HTMLButtonElement>('button', { className: 'primary', textContent: t.save });
   saveCal.addEventListener('click', async () => {
     saveCal.disabled = true;
     calResult.className = 'result';
@@ -237,12 +240,11 @@ function render(data: Awaited<ReturnType<ConnectionsApi['get']>>) {
   calStatus = statusLine(data.status.calendar);
   const calSection = h('section', {}, h('h2', {}, t.calendar), calStatus,
     field(t.calendarUrl, url),
-    h('div', { className: 'help' }, ...t.calendarHelp.map((l) => h('p', {}, l)), h('p', {}, link(t.calendarLink, 'https://calendar.google.com/calendar/r/settings'))),
+    h('details', {}, h('summary', {}, t.howTo), h('div', { className: 'help' }, ...t.calendarHelp.map((l) => h('p', {}, l)), h('p', {}, link(t.calendarLink, 'https://calendar.google.com/calendar/r/settings')))),
     calPrivate,
     h('div', { className: 'actions' }, saveCal, disCal), calResult);
 
   app.replaceChildren(
-    h('p', { className: 'intro' }, t.intro),
     mailSection,
     calSection,
   );

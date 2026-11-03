@@ -8,11 +8,11 @@
 // propres fenêtres, et ne garde rien : ni image, ni texte.
 
 import { screen, type BrowserWindow } from 'electron';
-import { detectProblem, normalize, worthSaying } from '../brain/detect';
+import { confirmTypo, detectProblem, normalize, worthSaying } from '../brain/detect';
 import { SPEAK } from '../../shared/types';
 import type { Brain } from '../brain/brain';
 import type { Humor, Lang } from '../../shared/types';
-import { frontWindow, permission, readWindow, type FrontWindow } from './capture';
+import { frontWindow, lookWindow, permission, type FrontWindow } from './capture';
 
 const LOOK_EVERY = 40_000;
 /** Il ne regarde que si tu as touché clavier ou souris il y a moins de… (s) */
@@ -134,11 +134,26 @@ export class ScreenWatcher {
       this.deps.say(t('Je ne vois que ma propre fenêtre. Réessaie en te mettant sur une autre appli.', 'All I can see is my own window. Try again from another app.', 'Tớ chỉ thấy cửa sổ của tớ. Thử lại từ ứng dụng khác nhé.'), true);
       return;
     }
-    const lines = await readWindow(w, this.deps.own());
+    const view = await lookWindow(w, this.deps.own());
+    const lines = view.lines;
     const d = lines.length >= 3 ? await detectProblem(this.deps.brain, { app: w.app, title: w.title, text: clip(lines) }, lang) : null;
+    if (d && worthSaying(d, clip(lines)) && !(await this.checked(d, view, lang))) d.problem = 'aucun';
     if (d && worthSaying(d, clip(lines))) this.deps.say(d.remark, true);
     else if (d?.quip) this.deps.say(`${t('Rien qui cloche.', 'Nothing wrong.', 'Không có gì sai.')} ${d.quip}`, true);
     else this.deps.say(t(`Rien à signaler dans ${w.app} : pas d’erreur, pas de faute. Je reste discret.`, `Nothing to report in ${w.app}: no error, no typo. I'll stay discreet.`, `Không có gì trong ${w.app}: không lỗi, không sai chính tả. Tớ sẽ im lặng.`), true);
+  }
+
+  /**
+   * Une faute (pas une erreur affichée) est relue en grand avant d'être dite : la lecture de l'écran
+   * confond des lettres, et une « faute » venue de là n'en est pas une. Le même passage, agrandi,
+   * doit donner les mêmes mots, et le modèle doit confirmer que c'est vraiment une faute.
+   */
+  private async checked(d: { problem: string; quote: string }, view: { zoom: (q: string) => Promise<string[] | null> }, lang: Lang) {
+    if (d.problem !== 'faute') return true;
+    const close = (await view.zoom(d.quote).catch(() => null))?.join('\n');
+    if (!close || !normalize(close).includes(normalize(d.quote))) return false;
+    const c = await confirmTypo(this.deps.brain, close, d.quote, lang).catch(() => null);
+    return Boolean(c?.faute);
   }
 
   async look() {
@@ -154,7 +169,8 @@ export class ScreenWatcher {
       if (this.deps.userIdle() > ACTIVE_WITHIN) return;
       if (this.deps.brain.status.state !== 'ready' || permission() !== 'granted') return;
 
-      const lines = await readWindow(w, this.deps.own());
+      const view = await lookWindow(w, this.deps.own());
+      const lines = view.lines;
       if (lines.length < 3) return;
       const text = clip(lines);
       // rien n'a vraiment changé depuis la dernière fois
@@ -163,6 +179,7 @@ export class ScreenWatcher {
 
       const d = await detectProblem(this.deps.brain, { app: w.app, title: w.title, text }, this.deps.lang());
       if (!d || this.deps.userIdle() > ACTIVE_WITHIN) return;
+      if (worthSaying(d, text) && !(await this.checked(d, view, this.deps.lang()))) d.problem = 'aucun';
       const now = Date.now();
       const key = normalize(d.quote);
       if (worthSaying(d, text) && !this.said.has(key) && now - this.lastRemark > REMARK_GAP) {

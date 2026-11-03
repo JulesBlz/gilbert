@@ -43,7 +43,7 @@ await Promise.all([
     outfile: 'dist/settings/settings.js',
     platform: 'browser',
     format: 'iife',
-    loader: { '.png': 'dataurl', '.woff2': 'file', '.woff': 'file' },
+    loader: { '.png': 'dataurl', '.svg': 'text', '.woff2': 'file', '.woff': 'file' },
   }),
   build({
     ...common,

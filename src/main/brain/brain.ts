@@ -3,7 +3,7 @@
 
 import { EventEmitter } from 'node:events';
 import type { BrainStatus, Memory } from '../../shared/types';
-import { download, isDownloaded, isPartial, modelPath, pickModel, type ModelInfo } from './models';
+import { MODELS, download, isDownloaded, isPartial, modelPath, pickModel, type ModelInfo } from './models';
 import { systemPrompt, type Persona } from './persona';
 
 // au-delà de cette pause, on repart d'une conversation neuve (et d'une heure à jour)
@@ -16,8 +16,10 @@ type NodeLlamaCpp = typeof import('node-llama-cpp');
 const loadLib = () => import('node-llama-cpp') as Promise<NodeLlamaCpp>;
 
 export class Brain extends EventEmitter {
-  readonly info: ModelInfo = pickModel();
+  info: ModelInfo;
   status: BrainStatus;
+  /** Un autre cerveau en cours de téléchargement pendant que celui-ci continue de tourner */
+  pulling: { id: string; progress: number } | null = null;
   private persona: Persona;
   private memory: Memory;
   private context = '';
@@ -35,8 +37,9 @@ export class Brain extends EventEmitter {
   private downloading: AbortController | null = null;
   private lastAsk = 0;
 
-  constructor(persona: Persona, memory: Memory) {
+  constructor(persona: Persona, memory: Memory, modelId = '') {
     super();
+    this.info = pickModel(modelId);
     this.persona = persona;
     this.memory = memory;
     this.status = isDownloaded(this.info)
@@ -53,6 +56,52 @@ export class Brain extends EventEmitter {
   async start() {
     if (isDownloaded(this.info)) await this.load();
     else if (isPartial(this.info)) await this.download();
+  }
+
+  /**
+   * Passe à un autre cerveau. Pendant qu'il se télécharge, l'actuel continue de tourner ; une fois
+   * prêt, on bascule (un court instant de « réveil »). Sans cerveau du tout, c'est un premier téléchargement.
+   */
+  async use(id: string) {
+    const m = MODELS.find((x) => x.id === id);
+    if (!m || m.id === this.info.id || this.pulling) return;
+    const none = this.status.state === 'missing' || this.status.state === 'error';
+    if (none && !this.downloading) {
+      this.info = m;
+      this.status = isDownloaded(m) ? { state: 'loading', model: m.label } : { state: 'missing', model: m.label, size: m.size };
+      this.emit('status', this.status);
+      await this.start();
+      if (this.status.state === 'missing') await this.download();
+      return;
+    }
+    if (this.downloading || this.status.state === 'loading') return;
+    if (!isDownloaded(m)) {
+      this.pulling = { id: m.id, progress: 0 };
+      this.emit('pull');
+      try {
+        await download(m, (progress) => {
+          if (this.pulling) this.pulling.progress = progress;
+          this.emit('pull');
+        });
+      } catch {
+        this.pulling = null;
+        this.emit('pull');
+        return;
+      }
+      this.pulling = null;
+    }
+    // la bascule attend la fin de ce que le cerveau actuel est en train de faire
+    this.queue = this.queue.then(async () => {
+      this.session?.dispose({ disposeSequence: false });
+      this.session = null;
+      await this.model?.dispose().catch(() => {});
+      this.model = null;
+      this.sequence = this.extractSequence = null;
+      this.info = m;
+      await this.load();
+    });
+    await this.queue;
+    this.emit('pull');
   }
 
   async download() {
@@ -205,16 +254,30 @@ export class Brain extends EventEmitter {
    * Pose une question. Les morceaux de réponse arrivent au fil de l'eau dans `onChunk`.
    * Les questions sont traitées une par une.
    */
-  ask(id: number, text: string, onChunk: (t: string) => void): Promise<string> {
+  /** Les échanges d'une discussion longue ont remplacé la conversation de la bulle */
+  private longChat = false;
+
+  /**
+   * Pose une question. `history` : les échanges d'une discussion longue (l'onglet Discussion), qui
+   * remplacent le fil de la bulle ; `long` : une réponse plus étoffée que les quelques mots d'une bulle.
+   */
+  ask(id: number, text: string, onChunk: (t: string) => void, opts: { history?: { role: 'user' | 'gilbert'; text: string }[]; long?: boolean } = {}): Promise<string> {
     const abort = new AbortController();
     this.aborts.set(id, abort);
     const run = async () => {
-      if (Date.now() - this.lastAsk > FRESH_AFTER_MS) this.newSession();
+      if (Date.now() - this.lastAsk > FRESH_AFTER_MS || (this.longChat && !opts.history)) this.newSession();
       this.lastAsk = Date.now();
       if (!this.session) throw new Error("le cerveau n'est pas prêt");
+      if (opts.history) {
+        this.session.setChatHistory([
+          { type: 'system', text: systemPrompt(this.persona, this.memory, this.context) },
+          ...opts.history.map((m) => (m.role === 'user' ? { type: 'user' as const, text: m.text } : { type: 'model' as const, response: [m.text] })),
+        ]);
+      }
+      this.longChat = Boolean(opts.history);
       try {
         return await this.session.prompt(text, {
-          maxTokens: 180,
+          maxTokens: opts.long ? 600 : 180,
           temperature: 0.8,
           topP: 0.95,
           signal: abort.signal,

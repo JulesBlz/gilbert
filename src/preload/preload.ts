@@ -13,6 +13,8 @@ const api: GilbertApi = {
   quit: () => ipcRenderer.send('app:quit'),
   introDone: (answers) => ipcRenderer.send('intro:done', answers),
   home: () => ipcRenderer.invoke('home:get'),
+  pendingAcorns: () => ipcRenderer.invoke('acorns:pending'),
+  collectAcorns: (acorns) => ipcRenderer.send('acorns:collect', acorns),
   tried: (key) => ipcRenderer.send('tried', key),
   setIgnoreMouse: (ignore) => ipcRenderer.send('mouse:ignore', ignore),
   setFocus: (on) => ipcRenderer.send('window:focus', on),
@@ -22,6 +24,8 @@ const api: GilbertApi = {
     ipcRenderer.on('command', (_e, cmd: Command) => cb(cmd));
   },
   brainStatus: () => ipcRenderer.invoke('brain:status'),
+  brainModels: () => ipcRenderer.invoke('brain:models'),
+  brainUse: (id) => ipcRenderer.send('brain:use', id),
   brainDownload: () => ipcRenderer.send('brain:download'),
   brainAsk: (id, text) => ipcRenderer.send('brain:ask', id, text),
   brainCancel: (id) => ipcRenderer.send('brain:cancel', id),

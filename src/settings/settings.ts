@@ -10,6 +10,7 @@
 import '@fontsource/jersey-10/400.css';
 // VT323 : la police pixel qui a les accents vietnamiens (Jersey 10 ne les a pas)
 import '@fontsource/vt323/400.css';
+import '../shared/theme.css';
 import '../carnet/carnet.css';
 import './settings.css';
 import head from '../../assets/head.png';
@@ -17,36 +18,39 @@ import { mountCarnet } from '../carnet/carnet';
 import { mountConnections } from '../connections/connections';
 import { renderJournal } from './journal-tab';
 import { renderShop } from './shop-tab';
-import { ACORN, GOLDEN_ACORN, drawGrid } from '../shared/pixels';
+import { GEAR_TAB_ICONS, TAB_ICONS, icon, pixels, tiny } from './icons';
+import { mountChat } from './chat-tab';
+import { ACORN, drawGrid } from '../shared/pixels';
 import {
   DEFAULT_SETTINGS, LOCALE,
-  type Humor, type JournalData, type Lang, type PrefsAction, type PrefsApi, type PrefsState, type Settings, type SettingsTab, type Size,
+  type ChatApi, type ChatThread, type Humor, type JournalData, type Lang, type PrefsAction, type PrefsApi, type PrefsState, type Settings, type SettingsTab, type Size,
 } from '../shared/types';
 
 declare global {
-  interface Window { prefs?: PrefsApi }
+  interface Window { prefs?: PrefsApi; chat?: ChatApi }
 }
 
 /** Une carte du guide : ce qu'il sait faire, la phrase à lui dire, et ce que fait « Essayer » */
 type Guide = { key: string; title: string; how: string; say?: string; act: [PrefsAction, string?]; needsMail?: boolean };
-type MainTab = 'home' | 'guide' | 'shop' | 'journal' | 'carnet';
+type MainTab = 'home' | 'chat' | 'guide' | 'shop' | 'journal' | 'carnet';
 type GearTab = 'general' | 'connections';
 
 const T = {
   fr: {
-    tabs: { home: "Aujourd'hui", guide: 'Guide', shop: 'Boutique', journal: 'Journal', carnet: 'Carnet' } as Record<MainTab, string>,
+    tabs: { home: "Tableau de bord", chat: 'Discussion', guide: 'Guide', shop: 'Boutique', journal: 'Journal', carnet: 'Carnet' } as Record<MainTab, string>,
     gear: { general: 'Réglages', connections: 'Connexions' } as Record<GearTab, string>,
+    setupN: (n: number) => `${n} chose${n > 1 ? 's' : ''} à brancher`,
     back: 'Retour', gearTitle: 'Réglages et connexions',
     greet: (h: number): string => (h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Salut' : 'Bonsoir'),
     day: 'Ta journée', allDay: 'Journée', now: 'en cours',
     nothingToday: 'Rien à l’agenda aujourd’hui.',
-    session: 'Session de travail', sessionHint: 'Je bosse avec toi, sans me laisser distraire : un gland par minute.',
+    session: 'Session de travail', sessionHint: 'Un gland par minute.',
     sessionOn: (at: string) => `En cours, jusqu’à ${at}.`, stop: 'Arrêter', launch: 'C’est parti',
     list: 'Ta liste', listAdd: 'Ajouter une tâche…', add: 'Ajouter', toDo: (n: number) => `${n} à faire`,
-    listEmpty: 'Rien sur ta liste. Écris ci-dessus, ou dis-moi « ajoute … à ma liste ».',
+    listEmpty: 'Rien sur ta liste.',
     groups: { late: 'En retard', today: 'Aujourd’hui', soon: 'À venir', done: 'Fait aujourd’hui' },
     setDate: '+ date', today: 'aujourd’hui', tomorrow: 'demain', rename: 'Clique pour renommer', removeTask: 'Retirer', split: 'Étapes', splitHint: 'Je la découpe en petites étapes',
-    rewardHint: 'Chaque fonction que tu utilises pour de vrai débloque une récompense : 10 glands.', reward: 'Récompense', rewardDone: '+10 glands',
+    rewardHint: '10 glands par fonction essayée.', reward: 'Récompense', rewardDone: '+10 glands',
     waiting: (names: string[]) => `${names.length} mail${names.length > 1 ? 's attendent' : ' attend'} ta réponse : ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`,
     start: 'Pour bien démarrer',
     steps: {
@@ -55,9 +59,9 @@ const T = {
       mail: ['Tes mails', 'Je les trie et je te préviens de l’important.', 'Brancher'],
       calendar: ['Ton agenda', 'Pour le brief et les rendez-vous.', 'Brancher'],
     },
-    acorns: (n: number, g: number) => `${n} gland${n > 1 ? 's' : ''}${g ? ` dont ${g} doré${g > 1 ? 's' : ''}` : ''}`,
+    acorns: (n: number) => `${n} gland${n > 1 ? 's' : ''}`,
     acornsToday: (n: number) => (n ? `+${n} aujourd’hui. ` : ''),
-    acornsHint: 'Un gland par minute de session de travail, 10 par essai du guide. Bientôt : de quoi m’offrir des skins.',
+    acornsHint: '',
     guideTitle: 'Ce que je sais faire', tried: (n: number, of: number) => `${n} / ${of} essayé${n > 1 ? 's' : ''}`,
     ask: 'Demande-moi', auto: 'Ce que je fais tout seul',
     try: 'Essayer', connect: 'Brancher',
@@ -86,6 +90,7 @@ const T = {
       vision: ['Regarder mon écran', 'Erreurs, fautes, oublis ; il se tait en visio et te rappelle à l’ordre. Il lit le texte de la fenêtre au premier plan, sur ton ordi, et ne garde rien.'],
       clipboard: ['M’aider avec ce que je copie', 'Traduire, résumer, corriger, reformuler, expliquer une erreur.'],
       tidy: ['Ranger mes Téléchargements', 'Il propose quand ça déborde, ne fait rien sans ton accord.'],
+      webSearch: ['Chercher sur internet', 'Quand il ne sait pas (actu, faits récents) ou si tu le lui demandes. Seule la question part, vers DuckDuckGo, sans compte.'],
       musicComments: ['Commenter ma musique', 'De temps en temps, sur Spotify ou Musique.'],
       journal: ['Tenir mon carnet de bord', 'Le nom des applis utilisées, les sessions, la note du soir.'],
       moods: ['Avoir des humeurs', 'Content quand on joue avec lui, boudeur quand on l’oublie.'],
@@ -100,26 +105,39 @@ const T = {
       ready: (m: string) => `${m}, prêt. Tout tourne sur ton ordinateur.`, error: (m: string) => `Erreur : ${m}`,
     },
     download: 'Télécharger',
+    brains: {
+      names: { light: 'Léger', balanced: 'Équilibré', powerful: 'Puissant' },
+      hints: {
+        light: 'Rapide, pour petites machines.',
+        balanced: 'Le bon compromis.',
+        powerful: 'Le plus fin, pour machines costaudes.',
+      },
+      size: (go: number) => `${go} Go à télécharger`, ram: (n: number) => `${n} Go de mémoire conseillés`,
+      active: 'Actif', use: 'Utiliser', get: 'Télécharger et utiliser', pulling: (p: number) => `Téléchargement ${p} %`,
+      recommended: 'Conseillé', tight: (n: number) => `Un peu juste (${n} Go)`,
+      hint: (n: number) => `Ta machine a ${n} Go de mémoire. Tu peux changer quand tu veux : l’actuel continue de tourner pendant le téléchargement du nouveau.`,
+    },
     voice: 'Notes vocales : Whisper, téléchargé au premier usage (≈ 250 Mo).',
     data: 'Tes données',
-    dataHint: 'Tout reste sur ton ordinateur : réglages, carnet, mails retrouvés, journal. Rien n’est envoyé ailleurs (sauf le nom de ta ville, pour la météo).',
+    dataHint: 'Tout reste sur ton ordinateur.',
     openData: 'Ouvrir le dossier',
     close: 'Fermer',
   },
   en: {
-    tabs: { home: 'Today', guide: 'Guide', shop: 'Shop', journal: 'Journal', carnet: 'Notebook' } as Record<MainTab, string>,
+    tabs: { home: 'Dashboard', chat: 'Chat', guide: 'Guide', shop: 'Shop', journal: 'Journal', carnet: 'Notebook' } as Record<MainTab, string>,
     gear: { general: 'Settings', connections: 'Connections' } as Record<GearTab, string>,
+    setupN: (n: number) => `${n} thing${n > 1 ? 's' : ''} to set up`,
     back: 'Back', gearTitle: 'Settings and connections',
     greet: (h: number): string => (h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Hi' : 'Good evening'),
     day: 'Your day', allDay: 'All day', now: 'now',
     nothingToday: 'Nothing on the calendar today.',
-    session: 'Work session', sessionHint: 'I work with you and nothing distracts me: one acorn per minute.',
+    session: 'Work session', sessionHint: 'One acorn per minute.',
     sessionOn: (at: string) => `Running, until ${at}.`, stop: 'Stop', launch: 'Let’s go',
     list: 'Your list', listAdd: 'Add a task…', add: 'Add', toDo: (n: number) => `${n} to do`,
-    listEmpty: 'Nothing on your list. Type above, or tell me "add … to my list".',
+    listEmpty: 'Your list is empty.',
     groups: { late: 'Overdue', today: 'Today', soon: 'Coming up', done: 'Done today' },
     setDate: '+ date', today: 'today', tomorrow: 'tomorrow', rename: 'Click to rename', removeTask: 'Remove', split: 'Steps', splitHint: 'I’ll break it into small steps',
-    rewardHint: 'Each feature you really use unlocks a reward: 10 acorns.', reward: 'Reward', rewardDone: '+10 acorns',
+    rewardHint: '10 acorns per feature tried.', reward: 'Reward', rewardDone: '+10 acorns',
     waiting: (names: string[]) => `${names.length} email${names.length > 1 ? 's are' : ' is'} waiting for your reply: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`,
     start: 'Getting started',
     steps: {
@@ -128,9 +146,9 @@ const T = {
       mail: ['Your email', 'I sort it and tell you what matters.', 'Connect'],
       calendar: ['Your calendar', 'For the brief and your meetings.', 'Connect'],
     },
-    acorns: (n: number, g: number) => `${n} acorn${n > 1 ? 's' : ''}${g ? `, ${g} golden` : ''}`,
+    acorns: (n: number) => `${n} acorn${n > 1 ? 's' : ''}`,
     acornsToday: (n: number) => (n ? `+${n} today. ` : ''),
-    acornsHint: 'One acorn per minute of work session, 10 per guide try. Soon: skins to buy me.',
+    acornsHint: '',
     guideTitle: 'What I can do', tried: (n: number, of: number) => `${n} / ${of} tried`,
     ask: 'Ask me', auto: 'What I do on my own',
     try: 'Try it', connect: 'Connect',
@@ -159,6 +177,7 @@ const T = {
       vision: ['Watch my screen', 'Errors, typos, oversights; goes quiet in calls and nudges you. Reads the front window’s text, on your computer, keeps nothing.'],
       clipboard: ['Help with what I copy', 'Translate, summarise, fix, rephrase, explain an error.'],
       tidy: ['Tidy my Downloads', 'Offers when they overflow, does nothing without your OK.'],
+      webSearch: ['Search the web', 'When he does not know (news, recent facts) or when you ask. Only the question is sent, to DuckDuckGo, no account.'],
       musicComments: ['Comment on my music', 'Now and then, on Spotify or Music.'],
       journal: ['Keep my logbook', 'Names of the apps you use, sessions, the evening note.'],
       moods: ['Have moods', 'Happy when played with, sulky when forgotten.'],
@@ -173,26 +192,39 @@ const T = {
       ready: (m: string) => `${m}, ready. Everything runs on your computer.`, error: (m: string) => `Error: ${m}`,
     },
     download: 'Download',
+    brains: {
+      names: { light: 'Light', balanced: 'Balanced', powerful: 'Powerful' },
+      hints: {
+        light: 'Fast, for small machines.',
+        balanced: 'The sweet spot.',
+        powerful: 'The sharpest, for strong machines.',
+      },
+      size: (go: number) => `${go} GB to download`, ram: (n: number) => `${n} GB of memory advised`,
+      active: 'Active', use: 'Use', get: 'Download and use', pulling: (p: number) => `Downloading ${p}%`,
+      recommended: 'Advised', tight: (n: number) => `A bit tight (${n} GB)`,
+      hint: (n: number) => `Your machine has ${n} GB of memory. You can switch any time: the current one keeps running while the new one downloads.`,
+    },
     voice: 'Voice notes: Whisper, downloaded on first use (≈ 250 MB).',
     data: 'Your data',
-    dataHint: 'Everything stays on your computer: settings, notebook, found emails, journal. Nothing is sent elsewhere (except your city name, for the weather).',
+    dataHint: 'Everything stays on your computer.',
     openData: 'Open folder',
     close: 'Close',
   },
   vi: {
-    tabs: { home: 'Hôm nay', guide: 'Hướng dẫn', shop: 'Cửa hàng', journal: 'Nhật ký', carnet: 'Sổ tay' } as Record<MainTab, string>,
+    tabs: { home: 'Bảng điều khiển', chat: 'Trò chuyện', guide: 'Hướng dẫn', shop: 'Cửa hàng', journal: 'Nhật ký', carnet: 'Sổ tay' } as Record<MainTab, string>,
     gear: { general: 'Cài đặt', connections: 'Kết nối' } as Record<GearTab, string>,
+    setupN: (n: number) => `${n} việc cần thiết lập`,
     back: 'Quay lại', gearTitle: 'Cài đặt và kết nối',
     greet: (h: number): string => (h < 5 ? 'Khuya rồi' : h < 12 ? 'Chào buổi sáng' : h < 18 ? 'Chào' : 'Chào buổi tối'),
     day: 'Ngày của cậu', allDay: 'Cả ngày', now: 'đang diễn ra',
     nothingToday: 'Hôm nay lịch trống.',
-    session: 'Buổi làm việc', sessionHint: 'Tớ làm việc cùng cậu, không xao nhãng: mỗi phút một quả sồi.',
+    session: 'Buổi làm việc', sessionHint: 'Mỗi phút một quả sồi.',
     sessionOn: (at: string) => `Đang làm, đến ${at}.`, stop: 'Dừng', launch: 'Bắt đầu',
     list: 'Danh sách việc', listAdd: 'Thêm một việc…', add: 'Thêm', toDo: (n: number) => `${n} việc`,
-    listEmpty: 'Danh sách trống. Gõ ở trên, hoặc bảo tớ « thêm … vào danh sách ».',
+    listEmpty: 'Danh sách trống.',
     groups: { late: 'Trễ hạn', today: 'Hôm nay', soon: 'Sắp tới', done: 'Xong hôm nay' },
     setDate: '+ ngày', today: 'hôm nay', tomorrow: 'ngày mai', rename: 'Bấm để đổi tên', removeTask: 'Xóa', split: 'Chia bước', splitHint: 'Tớ chia nhỏ thành từng bước',
-    rewardHint: 'Mỗi tính năng cậu dùng thật sự mở một phần thưởng: 10 quả sồi.', reward: 'Phần thưởng', rewardDone: '+10 quả sồi',
+    rewardHint: '10 quả sồi cho mỗi tính năng.', reward: 'Phần thưởng', rewardDone: '+10 quả sồi',
     waiting: (names: string[]) => `${names.length} email đang chờ cậu trả lời: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`,
     start: 'Bắt đầu',
     steps: {
@@ -201,9 +233,9 @@ const T = {
       mail: ['Email', 'Tớ phân loại và báo điều quan trọng.', 'Kết nối'],
       calendar: ['Lịch', 'Cho bản tin và các cuộc hẹn.', 'Kết nối'],
     },
-    acorns: (n: number, g: number) => `${n} quả sồi${g ? `, ${g} quả vàng` : ''}`,
+    acorns: (n: number) => `${n} quả sồi`,
     acornsToday: (n: number) => (n ? `+${n} hôm nay. ` : ''),
-    acornsHint: 'Mỗi phút làm việc một quả sồi, mỗi lần thử hướng dẫn 10 quả. Sắp tới: mua trang phục cho tớ.',
+    acornsHint: '',
     guideTitle: 'Những gì tớ làm được', tried: (n: number, of: number) => `đã thử ${n} / ${of}`,
     ask: 'Cứ hỏi tớ', auto: 'Tớ tự làm',
     try: 'Thử xem', connect: 'Kết nối',
@@ -232,6 +264,7 @@ const T = {
       vision: ['Nhìn màn hình', 'Lỗi, lỗi chính tả, sơ suất; im khi họp và nhắc cậu tập trung. Đọc chữ cửa sổ phía trước, ngay trên máy, không giữ lại gì.'],
       clipboard: ['Giúp với những gì tớ sao chép', 'Dịch, tóm tắt, sửa, viết lại, giải thích lỗi.'],
       tidy: ['Dọn thư mục Tải về', 'Gợi ý khi đầy, không làm gì khi chưa được đồng ý.'],
+      webSearch: ['Tìm trên mạng', 'Khi tớ không biết (tin tức, chuyện mới) hoặc cậu nhờ. Chỉ câu hỏi được gửi đến DuckDuckGo, không cần tài khoản.'],
       musicComments: ['Bình luận nhạc', 'Thỉnh thoảng, trên Spotify hoặc Nhạc.'],
       journal: ['Ghi nhật ký', 'Tên ứng dụng đã dùng, các buổi làm việc, ghi chú buổi tối.'],
       moods: ['Có tâm trạng', 'Vui khi được chơi cùng, dỗi khi bị bỏ quên.'],
@@ -246,21 +279,65 @@ const T = {
       ready: (m: string) => `${m}, sẵn sàng. Mọi thứ chạy trên máy cậu.`, error: (m: string) => `Lỗi: ${m}`,
     },
     download: 'Tải về',
+    brains: {
+      names: { light: 'Nhẹ', balanced: 'Cân bằng', powerful: 'Mạnh' },
+      hints: {
+        light: 'Nhanh, cho máy yếu.',
+        balanced: 'Cân bằng tốt.',
+        powerful: 'Tinh tế nhất, cho máy khỏe.',
+      },
+      size: (go: number) => `Tải ${go} GB`, ram: (n: number) => `Nên có ${n} GB bộ nhớ`,
+      active: 'Đang dùng', use: 'Dùng', get: 'Tải và dùng', pulling: (p: number) => `Đang tải ${p}%`,
+      recommended: 'Nên dùng', tight: (n: number) => `Hơi sát (${n} GB)`,
+      hint: (n: number) => `Máy cậu có ${n} GB bộ nhớ. Cậu đổi lúc nào cũng được: bộ não hiện tại vẫn chạy trong khi tải bộ não mới.`,
+    },
     voice: 'Ghi âm giọng nói: Whisper, tải khi dùng lần đầu (≈ 250 MB).',
     data: 'Dữ liệu của cậu',
-    dataHint: 'Mọi thứ ở trên máy cậu: cài đặt, sổ tay, email, nhật ký. Không gửi đi đâu (trừ tên thành phố, để xem thời tiết).',
+    dataHint: 'Mọi thứ ở lại trên máy cậu.',
     openData: 'Mở thư mục',
     close: 'Đóng',
   },
 };
+
+
+/** Les petits faux messages de l'aperçu navigateur (hors d'Electron) */
+function previewChat(): ChatApi {
+  const threads: ChatThread[] = [{ id: 'a', title: 'Idées de week-end', updated: Date.now(), messages: [
+    { role: 'user', text: 'Tu as une idée pour ce week-end ?', at: 1 },
+    { role: 'gilbert', text: 'Une balade au bord de l’eau, puis un bon café. Et moi, je garde la maison.', at: 2 },
+  ] }];
+  let listener: Parameters<ChatApi['onEvent']>[0] | null = null;
+  return {
+    list: async () => threads.map((t) => ({ id: t.id, title: t.title, updated: t.updated, count: t.messages.length })),
+    get: async (id) => threads.find((t) => t.id === id) ?? null,
+    create: async () => { const t = { id: `n${threads.length}`, title: '', updated: Date.now(), messages: [] }; threads.unshift(t); return t; },
+    remove: (id) => { const i = threads.findIndex((t) => t.id === id); if (i >= 0) threads.splice(i, 1); },
+    send: (id, text) => {
+      const t = threads.find((x) => x.id === id);
+      if (t && !t.title) t.title = text.slice(0, 40);
+      t?.messages.push({ role: 'user', text, at: Date.now() });
+      const reply = `Tu m'as dit « ${text} ». Je suis un faux cerveau, mais je t'écoute.`;
+      setTimeout(() => listener?.({ chat: id, kind: 'done', text: reply }), 700);
+      t?.messages.push({ role: 'gilbert', text: reply, at: Date.now() });
+    },
+    cancel: () => {},
+    onEvent: (cb) => { listener = cb; },
+  };
+}
 
 // aperçu navigateur : des réglages factices
 const api: PrefsApi = window.prefs ?? (() => {
   const day = new Date().toLocaleDateString('sv');
   let state: PrefsState = {
     settings: { ...DEFAULT_SETTINGS, tried: ['chat', 'brief', 'tidy'], collected: ['tidy'], owned: ['gray', 'fox', 'glasses'], skin: { fur: 'fox', accessory: 'glasses' } }, quiet: false, vision: { supported: true, permission: 'granted' },
-    brain: { state: 'ready', model: 'Gemma 4 12B' }, mail: false, calendar: true, city: false, focusEnds: 0,
-    wallet: { acorns: 340, golden: 1 },
+    brain: { state: 'ready', model: 'Gemma 4 12B' }, ramGB: 16, mail: false,
+    brains: [
+      { id: 'gemma-4-e2b', tier: 'light', label: 'Gemma 4 E2B', size: 3.11e9, minRamGB: 0, downloaded: false, active: false, recommended: false, pulling: null },
+      { id: 'gemma-4-e4b', tier: 'balanced', label: 'Gemma 4 E4B', size: 4.98e9, minRamGB: 12, downloaded: true, active: false, recommended: true, pulling: 0.42 },
+      { id: 'gemma-4-12b', tier: 'powerful', label: 'Gemma 4 12B', size: 7.12e9, minRamGB: 20, downloaded: true, active: true, recommended: false, pulling: null },
+    ],
+     calendar: true, city: false, focusEnds: 0,
+    wallet: { acorns: 340 },
     today: {
       name: 'Jules', weather: 'ciel couvert, 24 à 31 °C à Hanoi',
       events: [{ time: '10:00', title: 'Point projet avec Paul', now: false }, { time: '15:30', title: 'Entretien Renzo Piano', now: false }],
@@ -280,11 +357,12 @@ const api: PrefsApi = window.prefs ?? (() => {
     action: () => {},
     onChange: (cb) => { subs.push(cb); },
     onTab: () => {},
+    shown: () => {},
     journal: async () => ({
       days: {
         [day]: { apps: { 'Visual Studio Code': 142, 'Google Chrome': 96, Figma: 51, Slack: 18 }, focus: { sessions: 3, minutes: 100, stopped: 1 }, done: ['Rendre le devis'], mails: 4, chats: 7, note: '', acorns: 100 },
       },
-      weeks: {}, acorns: { total: 137, golden: 1 }, firstSeen: Date.now() - 12 * 86_400_000,
+      weeks: {}, acorns: { total: 137 }, firstSeen: Date.now() - 12 * 86_400_000,
     }),
     onJournal: () => {},
   };
@@ -292,14 +370,17 @@ const api: PrefsApi = window.prefs ?? (() => {
 
 let t = T.fr;
 const root = document.getElementById('app')!;
-const MAIN: MainTab[] = ['home', 'guide', 'shop', 'journal', 'carnet'];
+const MAIN: MainTab[] = ['chat', 'home', 'shop', 'journal', 'carnet', 'guide'];
 const GEAR: GearTab[] = ['general', 'connections'];
 const TABS: SettingsTab[] = [...MAIN, ...GEAR];
 const panes = {} as Record<SettingsTab, HTMLElement>;
 const tabButtons = {} as Record<SettingsTab, HTMLButtonElement>;
 let mainNav: HTMLElement;
 let gearNav: HTMLElement;
-let gearButton: HTMLButtonElement;
+/** Le panneau de droite (le titre de la page et ses pages, qui défilent) et le rail de gauche */
+let content: HTMLElement;
+let pageTitle: HTMLElement;
+let purse: HTMLElement;
 /** L'onglet principal où revenir en quittant la roue crantée */
 let lastMain: MainTab = 'home';
 let state: PrefsState;
@@ -311,57 +392,26 @@ function h<E extends HTMLElement = HTMLElement>(tag: string, props: Record<strin
   return el;
 }
 
-/** Une icône pixel (une grille de « X »), à la couleur du texte */
-function pixels(grid: string[], scale: number) {
-  const d = grid.flatMap((row, y) => [...row.matchAll(/X+/g)].map((m) => `M${m.index} ${y}h${m[0].length}v1h-${m[0].length}z`)).join('');
-  const w = grid[0].length, hgt = grid.length;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`);
-  svg.setAttribute('width', String(w * scale));
-  svg.setAttribute('height', String(hgt * scale));
-  svg.setAttribute('shape-rendering', 'crispEdges');
-  svg.setAttribute('aria-hidden', 'true');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', d);
-  svg.append(path);
-  return svg;
-}
-
-// un engrenage : huit dents (quatre droites, quatre en biais), une couronne et le trou du milieu
-const GEAR_ICON = [
-  '.....XXXX.....',
-  '.....XXXX.....',
-  '..XX.XXXX.XX..',
-  '..XXXXXXXXXX..',
-  '...XXXXXXXX...',
-  'XXXXXX..XXXXXX',
-  'XXXXX....XXXXX',
-  'XXXXX....XXXXX',
-  'XXXXXX..XXXXXX',
-  '...XXXXXXXX...',
-  '..XXXXXXXXXX..',
-  '..XX.XXXX.XX..',
-  '.....XXXX.....',
-  '.....XXXX.....',
-];
-
 function show(tab: SettingsTab) {
+  api.shown(tab);
+  document.body.classList.toggle('on-chat', tab === 'chat');
+  if (tab === 'chat') openChat?.();
   const inGear = (GEAR as SettingsTab[]).includes(tab);
-  if (!inGear) lastMain = tab as MainTab;
   for (const k of TABS) {
     panes[k].hidden = k !== tab;
     tabButtons[k].classList.toggle('on', k === tab);
   }
-  mainNav.hidden = inGear;
-  gearNav.hidden = !inGear;
-  gearButton.classList.toggle('on', inGear);
-  root.scrollTop = 0;
+  pageTitle.textContent = inGear ? t.gear[tab as GearTab] : t.tabs[tab as MainTab];
+  content.scrollTop = 0;
 }
 
 const set = (patch: Partial<Settings>) => api.set(patch);
 
+/** L'onglet Discussion s'affiche : la dernière conversation s'ouvre */
+let openChat: (() => Promise<void>) | null = null;
+
 function button(text: string, onClick: () => void, ghost = true) {
-  const b = h<HTMLButtonElement>('button', { textContent: text, className: ghost ? 'ghost' : '' });
+  const b = h<HTMLButtonElement>('button', { textContent: text, className: ghost ? 'ghost' : 'primary' });
   b.addEventListener('click', onClick);
   return b;
 }
@@ -370,7 +420,7 @@ function button(text: string, onClick: () => void, ghost = true) {
 function seg<V extends string | number>(label: string, options: [V, string][], current: V, pick: (v: V) => void) {
   const row = h('div', { className: 'seg' });
   for (const [v, text] of options) {
-    const b = button(text, () => pick(v), false);
+    const b = button(text, () => pick(v), true);
     b.classList.toggle('on', v === current);
     row.append(b);
   }
@@ -382,14 +432,15 @@ function toggle(label: string, hint: string, on: boolean, change: (on: boolean) 
   const box = h<HTMLInputElement>('input', { type: 'checkbox', checked: on });
   box.addEventListener('change', () => change(box.checked));
   const text = h('span', {}, h('b', {}, label));
-  if (warn || hint) text.append(h('small', { className: warn ? 'warn' : '' }, warn || hint));
-  return h('label', { className: 'switch' }, box, text);
+  // l'explication n'est lue qu'au survol ; seul un avertissement reste affiché
+  if (warn) text.append(h('small', { className: 'warn' }, warn));
+  return h('label', { className: 'switch', title: hint }, box, text);
 }
 
 /** Un petit gland dessiné en pixels */
-function acornIcon(golden = false) {
-  const c = h<HTMLCanvasElement>('canvas', { width: 30, height: 30, className: 'acorn' });
-  drawGrid(c.getContext('2d')!, golden ? GOLDEN_ACORN : ACORN, 0, 0, 3);
+function acornIcon() {
+  const c = h<HTMLCanvasElement>('canvas', { width: 20, height: 20, className: 'acorn' });
+  drawGrid(c.getContext('2d')!, ACORN, 0, 0, 2);
   return c;
 }
 
@@ -585,22 +636,16 @@ function renderHome() {
   ];
   const todo = steps.filter(([, done]) => !done);
   if (todo.length) {
-    const start = h('section', {}, h('h2', {}, t.start));
-    for (const [k, , then] of todo) {
-      const [title, why, action] = t.steps[k];
-      start.append(h('div', { className: 'step' }, h('span', {}, h('b', {}, title), h('small', {}, why)), button(action, then, false)));
-    }
-    sections.push(start);
+    // ce qu'il reste à brancher : un bloc comme les autres, une pastille par chose
+    sections.push(h('section', { className: 'setup' }, h('h2', {}, t.setupN(todo.length)), h('div', { className: 'buttons' }, ...todo.map(([k, , then]) => {
+      const b = h<HTMLButtonElement>('button', { textContent: t.steps[k][0], title: t.steps[k][1] });
+      b.addEventListener('click', then);
+      return b;
+    }))));
   }
 
   sections.push(renderDay(), renderSession(), renderList());
 
-  // les glands
-  const a = journal?.acorns ?? { total: 0, golden: 0 };
-  const todayAcorns = journal?.days[new Date().toLocaleDateString('sv')]?.acorns ?? 0;
-  sections.push(h('section', { className: 'acorns' },
-    acornIcon(), h('span', {}, h('b', {}, t.acorns(a.total, a.golden)), h('small', {}, t.acornsToday(todayAcorns) + t.acornsHint)),
-    ...(a.golden ? [acornIcon(true)] : [])));
   panes.home.replaceChildren(...sections);
 }
 
@@ -612,11 +657,17 @@ function reward(key: string) {
   b.addEventListener('click', () => {
     b.disabled = true;
     b.classList.add('gone');
-    b.parentElement?.append(h('span', { className: 'reward-pop' }, t.rewardDone));
     // on encaisse après l'animation : la carte est redessinée dès que le compteur change
     setTimeout(() => api.action('collect', key), 900);
   }, { once: true });
   return b;
+}
+
+/** Une jauge pixel : `done` sur `total` */
+function meter(done: number, total: number, title: string) {
+  const fill = h('i');
+  fill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
+  return h('span', { className: 'meter', title }, h('span', { className: 'meter-track' }, fill), h('small', {}, `${done}/${total}`));
 }
 
 function renderGuide() {
@@ -640,17 +691,15 @@ function renderGuide() {
       api.action(...g.act);
     }, false);
     b.className = 'try';
-    return h('div', { className: `card${tried.has(g.key) ? ' tried' : ''}` },
+    return h('div', { className: `card${tried.has(g.key) ? ' tried' : ''}`, title: g.how },
       h('b', {}, g.title),
-      h('p', {}, g.how),
       ...(g.say ? [h('q', {}, g.say)] : []),
       h('div', { className: 'card-actions' }, b, ...(tried.has(g.key) && !collected.has(g.key) ? [reward(g.key)] : [])));
   };
   const ask = ['chat', 'focus', 'list', 'remind', 'mail', 'music'];
   const done = t.guide.filter((g) => tried.has(g.key)).length;
   panes.guide.replaceChildren(h('section', {},
-    h('h2', {}, t.guideTitle, h('small', { className: 'count' }, t.tried(done, t.guide.length))),
-    h('p', { className: 'empty' }, t.rewardHint),
+    h('h2', {}, t.guideTitle, meter(done, t.guide.length, `${t.tried(done, t.guide.length)} · ${t.rewardHint}`)),
     h('h3', {}, t.ask), h('div', { className: 'cards' }, ...t.guide.filter((g) => ask.includes(g.key)).map(card)),
     h('h3', {}, t.auto), h('div', { className: 'cards' }, ...t.guide.filter((g) => !ask.includes(g.key)).map(card))));
 }
@@ -669,7 +718,7 @@ function renderGeneral() {
   );
 
   const allowed = h('section', {}, h('h2', {}, t.allowed));
-  const keys = (['vision', 'clipboard', 'messages', 'tidy', 'musicComments', 'journal', 'moods'] as const)
+  const keys = (['vision', 'clipboard', 'messages', 'tidy', 'musicComments', 'journal', 'moods', 'webSearch'] as const)
     // les messageries : seulement sur Mac (la pastille des applis)
     .filter((k) => (k !== 'vision' || state.vision.supported) && (k !== 'messages' || /Mac/.test(navigator.platform)));
   for (const k of keys) {
@@ -677,22 +726,33 @@ function renderGeneral() {
     const denied = k === 'vision' && s.vision && state.vision.permission !== 'granted' ? t.visionDenied : '';
     allowed.append(toggle(label, hint, s[k], (on) => set({ [k]: on }), denied));
   }
+  const [mailLabel, mailHint] = t.switches.mailPrimaryOnly;
+  allowed.append(toggle(mailLabel, mailHint, s.mailPrimaryOnly, (on) => set({ mailPrimaryOnly: on })));
 
   const b = state.brain;
-  const brainText = b.state === 'ready' ? t.brainState.ready(b.model)
-    : b.state === 'downloading' ? t.brainState.downloading(Math.round(b.progress * 100))
-    : b.state === 'error' ? t.brainState.error(b.message)
-    : b.state === 'loading' ? t.brainState.loading : t.brainState.missing;
-  const brain = h('section', {}, h('h2', {}, t.brain), h('p', {}, brainText), h('p', { className: 'empty' }, t.voice),
+  const brainText = brainLine(b);
+  const tb = t.brains;
+  const rows = state.brains.map((c) => {
+    const go = Math.round(c.size / 1e8) / 10;
+    const tight = state.ramGB < c.minRamGB;
+    const act = c.active ? h('span', { className: 'tag on' }, tb.active)
+      : c.pulling !== null ? h('span', { className: 'tag' }, tb.pulling(Math.round(c.pulling * 100)))
+      : button(c.downloaded ? tb.use : tb.get, () => api.action('useBrain', c.id), false);
+    return h('div', { className: `brain-row${c.active ? ' on' : ''}`, title: tb.hints[c.tier] },
+      h('i', { className: 'radio' }),
+      h('span', { className: 'name' }, h('b', {}, tb.names[c.tier]), h('small', {}, c.label)),
+      ...(c.recommended ? [h('span', { className: 'tag' }, tb.recommended)] : tight ? [h('span', { className: 'tag warn' }, tb.tight(state.ramGB))] : []),
+      h('span', { className: 'meta' }, `${go} Go`),
+      act);
+  });
+  const brain = h('section', {}, h('h2', {}, t.brain), h('p', { className: 'empty' }, brainText),
+    ...(rows.length ? [h('div', { className: 'brain-list' }, ...rows)] : []),
     ...(b.state === 'missing' || b.state === 'error' ? [h('div', { className: 'buttons' }, button(t.download, () => api.action('downloadBrain'), false))] : []));
 
   const data = h('section', {}, h('h2', {}, t.data), h('p', { className: 'empty' }, t.dataHint),
     h('div', { className: 'buttons' }, button(t.openData, () => api.action('openData'))));
 
-  const [mailLabel, mailHint] = t.switches.mailPrimaryOnly;
-  const mails = h('section', {}, h('h2', {}, t.mails), toggle(mailLabel, mailHint, s.mailPrimaryOnly, (on) => set({ mailPrimaryOnly: on })));
-
-  panes.general.replaceChildren(character, allowed, mails, brain, data);
+  panes.general.replaceChildren(character, allowed, brain, data);
 }
 
 /** Tu écris dans un champ de cette page (un renommage, une tâche pas encore ajoutée) : on ne la reconstruit pas sous tes doigts */
@@ -704,7 +764,21 @@ let homeStale = false;
 /** On vient d'ajouter une tâche : après le redessin, le curseur revient dans le champ */
 let refocusAdd = false;
 
+const brainLine = (b: PrefsState['brain']) => (b.state === 'ready' ? t.brainState.ready(b.model)
+  : b.state === 'downloading' ? t.brainState.downloading(Math.round(b.progress * 100))
+  : b.state === 'error' ? t.brainState.error(b.message)
+  : b.state === 'loading' ? t.brainState.loading : t.brainState.missing);
+
+/** Les glands, toujours visibles dans le rail */
+function renderPurse() {
+  const w = state.wallet;
+  purse.replaceChildren(
+    h('div', { className: 'count', title: t.acorns(w.acorns) }, acornIcon(), h('b', {}, String(w.acorns))),
+  );
+}
+
 function renderAll() {
+  renderPurse();
   if (typingIn(panes.home)) homeStale = true;
   else {
     renderHome();
@@ -718,7 +792,7 @@ function renderAll() {
 }
 
 function closeButton() {
-  const b = h<HTMLButtonElement>('button', { className: 'close' }, h('i'));
+  const b = h<HTMLButtonElement>('button', { className: 'close' }, tiny('close'));
   b.setAttribute('aria-label', t.close);
   b.addEventListener('click', () => window.close());
   return b;
@@ -731,30 +805,32 @@ api.get().then((s) => {
   for (const k of TABS) panes[k] = h('div', { className: `pane pane-${k}` });
   mainNav = h('nav', { className: 'tabs' });
   for (const k of MAIN) {
-    tabButtons[k] = button(t.tabs[k], () => show(k), false);
+    tabButtons[k] = h<HTMLButtonElement>('button', { className: 'tab', title: t.tabs[k] }, icon(TAB_ICONS[k as MainTab]), h('span', {}, t.tabs[k]));
+    tabButtons[k].addEventListener('click', () => show(k));
     mainNav.append(tabButtons[k]);
   }
-  gearNav = h('nav', { className: 'tabs gear-tabs' }, button(`‹ ${t.back}`, () => show(lastMain)));
-  for (const k of GEAR) {
-    tabButtons[k] = button(t.gear[k], () => show(k), false);
+  // Connexions et Réglages : directement en bas à gauche, sans sous-menu
+  gearNav = h('nav', { className: 'tabs gear-tabs' });
+  for (const k of [...GEAR].reverse()) {
+    tabButtons[k] = h<HTMLButtonElement>('button', { className: 'tab', title: t.gear[k] }, icon(GEAR_TAB_ICONS[k]), h('span', {}, t.gear[k]));
+    tabButtons[k].addEventListener('click', () => show(k));
     gearNav.append(tabButtons[k]);
   }
-  gearButton = h<HTMLButtonElement>('button', { className: 'gear', title: t.gearTitle }, pixels(GEAR_ICON, 2));
-  gearButton.setAttribute('aria-label', t.gearTitle);
-  gearButton.addEventListener('click', () => show(gearButton.classList.contains('on') ? lastMain : 'general'));
-  root.replaceChildren(
-    h('header', {}, h('img', { src: head, alt: '', className: 'logo' }), h('h1', {}, 'Gilbert'), gearButton, closeButton()),
-    mainNav, gearNav, ...TABS.map((k) => panes[k]),
-  );
+  pageTitle = h('h1', {});
+  purse = h('div', { className: 'purse' });
+  content = h('div', { className: 'content' }, h('header', {}, pageTitle, closeButton()), ...TABS.map((k) => panes[k]));
+  root.replaceChildren(h('aside', { className: 'rail' }, h('img', { src: head, alt: '', className: 'logo' }), mainNav, h('div', { className: 'rail-fill' }), gearNav, purse), content);
   panes.home.addEventListener('focusout', () => setTimeout(() => {
     if (homeStale && !typingIn(panes.home)) { homeStale = false; renderHome(); }
   }, 0));
+  openChat = mountChat(panes.chat, window.chat ?? previewChat(), () => state.settings.lang);
   mountCarnet(panes.carnet);
   mountConnections(panes.connections);
   renderAll();
+  document.documentElement.style.setProperty('--header-h', `${root.querySelector('header')?.offsetHeight ?? 70}px`);
   api.journal().then((d) => { journal = d; renderAll(); });
   const first = location.hash.slice(1) as SettingsTab;
-  show(TABS.includes(first) ? first : 'home');
+  show(TABS.includes(first) ? first : 'chat');
 });
 
 api.onChange((s) => {

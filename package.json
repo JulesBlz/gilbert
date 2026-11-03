@@ -8,12 +8,14 @@
     "sprites": "node tools/gen-sprites.mjs",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
+    "check:theme": "node scripts/check-theme.mjs",
     "start": "npm run build && electron .",
     "preview": "node scripts/build.mjs && node scripts/preview-server.mjs",
     "test:brain": "node scripts/brain-test.mjs",
     "test:memory": "esbuild scripts/memory-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --outfile=dist/memory-test.js --log-level=warning && electron dist/memory-test.js",
     "test:assistant": "esbuild scripts/assistant-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/assistant-test.js --log-level=warning && electron dist/assistant-test.js",
     "test:calendar": "node scripts/calendar-test.ts && node scripts/calendar-auth-test.ts",
+    "test:web": "esbuild scripts/web-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --outfile=dist/web-test.js --log-level=warning && electron dist/web-test.js",
     "test:brief": "esbuild scripts/brief-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/brief-test.js --log-level=warning && electron dist/brief-test.js",
     "test:vision": "esbuild scripts/vision-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/vision-test.js --log-level=warning && mkdir -p dist/vision && cp src/main/vision/*.js src/main/vision/*.ps1 dist/vision/ && electron dist/vision-test.js",
     "test:music": "esbuild scripts/music-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/music-test.js --log-level=warning && mkdir -p dist/vision && cp src/main/vision/*.js src/main/vision/*.ps1 dist/vision/ && electron dist/music-test.js",
@@ -44,7 +46,8 @@
     "ical.js": "^2.2.1",
     "imapflow": "^2.9.1",
     "mailparser": "^3.12.4",
-    "node-llama-cpp": "^3.22.2"
+    "node-llama-cpp": "^3.22.2",
+    "pixelarticons": "^2.4.2"
   },
   "author": "Jules Balzarini",
   "build": {

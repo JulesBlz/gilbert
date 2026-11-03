@@ -18,16 +18,30 @@ export interface Stream {
 const delayAfter = (ch: string) => (ch === ' ' ? 25 : /[.,!?…:;]/.test(ch) ? 180 : 38);
 
 /**
- * Place un élément au-dessus du point (cx, y) — ou en dessous avec `below` —
- * sans sortir de l'écran, avec sa queue pointée vers Gilbert
+ * Place un élément au-dessus du point (cx, y) — ou en dessous avec `below` — sans sortir de l'écran,
+ * avec sa queue pointée vers Gilbert. Quand il n'y a pas la place au-dessus (Gilbert tout en haut de
+ * l'écran), et que `body` donne le bas de son corps et sa demi-largeur : en dessous de lui, ou à côté.
  */
-export function placeAbove(el: HTMLElement, cx: number, y0: number, below = false) {
+export function placeAbove(el: HTMLElement, cx: number, y0: number, below = false, body?: { bottom: number; half: number }) {
   if (el.hidden) return;
-  el.classList.toggle('below', below);
   const w = el.offsetWidth, h = el.offsetHeight;
   const margin = 10;
-  const left = Math.round(Math.min(Math.max(cx - w / 2, margin), innerWidth - w - margin));
-  const y = Math.round(below ? y0 + 16 : Math.max(y0 - h - 16, margin));
+  let mode: 'above' | 'below' | 'side' = below ? 'below' : 'above';
+  let left = Math.round(Math.min(Math.max(cx - w / 2, margin), innerWidth - w - margin));
+  let y = Math.round(below ? y0 + 16 : Math.max(y0 - h - 16, margin));
+  if (!below && body && y0 - h - 16 < margin) {
+    if (body.bottom + 8 + h <= innerHeight - margin) {
+      mode = 'below';
+      y = Math.round(body.bottom + 8);
+    } else {
+      mode = 'side';
+      const right = cx + body.half + 14;
+      left = Math.round(right + w <= innerWidth - margin ? right : Math.max(cx - body.half - 14 - w, margin));
+      y = Math.round(Math.min(Math.max(y0, margin), innerHeight - h - margin));
+    }
+  }
+  el.classList.toggle('below', mode === 'below');
+  el.classList.toggle('side', mode === 'side');
   el.style.transform = `translate(${left}px, ${y}px)`;
   const tail = Math.min(Math.max(cx - left, 14), w - 14);
   el.style.setProperty('--tail-x', `${Math.round(tail)}px`);
@@ -149,8 +163,8 @@ export class Bubble {
     }, 250);
   }
 
-  place(cx: number, y: number, below = false) {
-    placeAbove(this.el, cx, y, below);
+  place(cx: number, y: number, below = false, body?: { bottom: number; half: number }) {
+    placeAbove(this.el, cx, y, below, body);
   }
 
   contains(x: number, y: number) {

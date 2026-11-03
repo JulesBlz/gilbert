@@ -1,9 +1,3 @@
-:root {
-  --ink: #2b1d14;
-  --paper: #fff6e3;
-  --px: 3px;
-}
-
 html, body {
   margin: 0;
   height: 100%;
@@ -35,18 +29,14 @@ body.preview {
   left: 0;
   top: 0;
   max-width: 300px;
-  padding: 8px 12px 9px;
-  background: var(--paper);
+  padding: 8px 12px 8px;
+  background: var(--card);
   color: var(--ink);
   font-family: 'Jersey 10', ui-monospace, monospace;
-  font-size: 20px;
-  line-height: 1.1;
+  font-size: var(--fs-m);
+  line-height: var(--lh);
   -webkit-font-smoothing: none;
-  box-shadow:
-    0 calc(-1 * var(--px)) 0 0 var(--ink),
-    0 var(--px) 0 0 var(--ink),
-    calc(-1 * var(--px)) 0 0 0 var(--ink),
-    var(--px) 0 0 0 var(--ink);
+  box-shadow: 0 0 0 var(--px) var(--ink);
   cursor: pointer;
   transition: opacity 0.25s steps(3);
 }
@@ -66,18 +56,12 @@ body.preview {
 }
 .bubble-actions[hidden] { display: none; }
 .bubble-actions button {
-  font: inherit;
-  color: var(--paper);
-  background: var(--ink);
-  border: 0;
-  padding: 3px 10px 4px;
-  cursor: pointer;
+  padding: 4px 10px 4px;
 }
-.bubble-actions button + button {
-  color: var(--ink);
-  background: transparent;
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
+/* le premier choix est l'action (orange) ; les autres s'effacent (creux) */
+.bubble-actions button:first-child { color: var(--ink); background: var(--accent); box-shadow: inset 0 0 0 var(--bw) var(--ink), 2px 2px 0 var(--ink); margin: 0 2px 2px 0; }
+.bubble-actions button + button { color: var(--ink); background: transparent; box-shadow: inset 0 0 0 var(--bw) var(--ink); margin: 0; }
+.bubble-actions button:first-child:only-child { margin: 0 2px 2px 0; }
 
 /* champ de discussion, même style que la bulle */
 .chat {
@@ -91,15 +75,17 @@ body.preview {
   color: var(--ink);
   background: transparent;
   border: 0;
+  box-shadow: none;
   outline: none;
   padding: 0;
   caret-color: var(--ink);
 }
-.chat input::placeholder { color: #8f857a; }
+.chat input:focus { box-shadow: none; }
+.chat input::placeholder { color: var(--muted); }
 .chat-prompt {
   margin-bottom: 6px;
   padding-bottom: 6px;
-  border-bottom: 2px dotted #c9bfb2;
+  border-bottom: 2px dotted var(--line);
 }
 .chat-prompt[hidden] { display: none; }
 .chat-row { display: flex; align-items: center; gap: 6px; }
@@ -116,12 +102,12 @@ body.preview {
 }
 .chat-more i {
   position: absolute;
-  left: 3px;
-  top: 9px;
-  width: 3px;
-  height: 3px;
-  background: #b3a99c;
-  box-shadow: 6px 0 0 #b3a99c, 12px 0 0 #b3a99c;
+  left: 4px;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  background: var(--line);
+  box-shadow: 6px 0 0 var(--line), 12px 0 0 var(--line);
 }
 .chat-more:hover i { background: var(--ink); box-shadow: 6px 0 0 var(--ink), 12px 0 0 var(--ink); }
 
@@ -130,14 +116,15 @@ body.preview {
   position: absolute;
   top: 100%;
   left: var(--tail-x, 50%);
-  width: 12px;
-  height: 9px;
-  margin-left: -6px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 3' shape-rendering='crispEdges'%3E%3Cpath fill='%232b1d14' d='M0 0h1v3H0zM3 0h1v1H3zM2 1h1v1H2zM1 2h1v1H1z'/%3E%3Cpath fill='%23fff6e3' d='M1 0h2v1H1zM1 1h1v1H1z'/%3E%3C/svg%3E") no-repeat;
+  width: 16px;
+  height: 8px;
+  margin-left: -8px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4' shape-rendering='crispEdges'%3E%3Cpath fill='%231f1b16' d='M0 0h1v1H0zM7 0h1v1H7zM1 1h1v1H1zM6 1h1v1H6zM2 2h1v1H2zM5 2h1v1H5zM3 3h2v1H3z'/%3E%3Cpath fill='%23fbf5e6' d='M1 0h6v1H1zM2 1h4v1H2zM3 2h2v1H3z'/%3E%3C/svg%3E") no-repeat;
   background-size: 100% 100%;
 }
 
 /* bulle sous la queue qui pend : la pointe regarde vers le haut */
+.bubble.side .bubble-tail { display: none; }
 .bubble.below .bubble-tail {
   top: auto;
   bottom: 100%;
@@ -147,8 +134,8 @@ body.preview {
 /* vietnamien : Jersey 10 n'a pas les accents empilés (ệ, ữ…) ; VT323, pixel lui aussi, les a */
 html[lang="vi"] .bubble, html[lang="vi"] .chat {
   font-family: 'VT323', ui-monospace, monospace;
-  font-size: 23px;
-  line-height: 1.05;
+  font-size: var(--fs-m);
+  line-height: var(--lh);
 }
 
 /* session de travail : petit compte à rebours pixel au-dessus de la tête */
@@ -156,12 +143,12 @@ html[lang="vi"] .bubble, html[lang="vi"] .chat {
   position: fixed;
   left: 0;
   top: 0;
-  padding: 1px 6px 2px;
+  padding: 2px 6px 2px;
   background: var(--ink);
-  color: var(--paper);
+  color: var(--card);
   font-family: 'Jersey 10', ui-monospace, monospace;
-  font-size: 18px;
-  line-height: 1;
+  font-size: var(--fs-xs);
+  line-height: 18px;
   -webkit-font-smoothing: none;
   pointer-events: none;
   transform: translate(-50%, -100%);
@@ -177,14 +164,14 @@ html[lang="vi"] .bubble, html[lang="vi"] .chat {
   border: 0;
   background: none;
   cursor: pointer;
-  color: #b3a99c;
+  color: var(--line);
   display: grid;
   place-items: center;
 }
 .chat-mic svg { display: block; fill: currentColor; }
 .chat-mic:hover { color: var(--ink); }
-.chat-mic.recording { color: #c2463c; animation: mic 0.8s steps(2) infinite; }
-.chat-mic.busy { color: #9a7b2c; }
+.chat-mic.recording { color: var(--danger); animation: mic 0.8s steps(2) infinite; }
+.chat-mic.busy { color: var(--gold-ink); }
 @keyframes mic { 50% { opacity: 0.4; } }
 /* ce que Whisper entend, écrit au fil de la voix */
-.chat input.live { color: #8a8074; }
+.chat input.live { color: var(--muted); }

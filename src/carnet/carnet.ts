@@ -128,7 +128,10 @@ function render() {
   const BASICS: (keyof Profile)[] = ['name', 'nickname', 'city', 'job', 'schedule', 'birthday'];
   const MORE: (keyof Profile)[] = ['fuel', 'goal', 'humor', 'procrastination', 'motivation', 'avoid'];
   sections.push(h('section', {}, h('h2', {}, t.you), h('div', { className: 'pair' }, ...BASICS.map(field))));
-  sections.push(h('section', {}, h('h2', {}, t.more), h('p', { className: 'empty' }, t.moreHint), h('div', { className: 'pair' }, ...MORE.map(field))));
+  // « Pour mieux te connaître » : replié, on l'ouvre si l'on veut (l'explication est au survol)
+  const more = h<HTMLDetailsElement>('details', { title: t.moreHint }, h('summary', {}, t.more), h('div', { className: 'pair' }, ...MORE.map(field)));
+  more.open = MORE.some((k) => Boolean(memory.profile[k]));
+  sections.push(h('section', { className: 'fold' }, more));
 
   // proches
   const people = h('section', {}, h('h2', {}, t.people));
@@ -171,14 +174,13 @@ function render() {
   sections.push(facts);
 
   // pied de page
-  const forget = h('button', { className: 'danger', textContent: t.forget });
+  const forget = h('button', { className: 'danger', textContent: t.forget, title: t.intro });
   forget.addEventListener('click', () => {
     if (confirm(t.forgetConfirm)) api.forgetAll();
   });
   status = h('span');
 
   app.replaceChildren(
-    h('p', { className: 'intro' }, t.intro),
     ...sections,
     h('div', { className: 'footer' }, status, forget),
   );

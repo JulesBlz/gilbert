@@ -133,6 +133,8 @@ export const vi: Lines = {
 
   // bộ não
   brainMissing: ['Tớ chưa có bộ não. Tớ tải về nhé? Nặng {size}, chỉ một lần thôi.'],
+  brainChoose: ['Tớ chưa có bộ não. Cậu chọn một cái, chỉ một lần (đổi được trong cài đặt): bản nhẹ thì nhanh, bản mạnh thì tinh tế hơn. Ngôi sao là bản hợp với máy cậu.'],
+  brainTiers: ['Nhẹ', 'Cân bằng', 'Mạnh'],
   brainYes: ['Tải đi'],
   brainLater: ['Để sau'],
   brainStarted: ['Bắt đầu rồi. Xong tớ báo cậu.'],
@@ -153,12 +155,11 @@ export const vi: Lines = {
   focusLeft: ['Còn {m} phút. Cố lên!', 'Suỵt, đang làm việc. Còn {m} phút.', 'Không phải bây giờ, tớ đang tập trung. {m} phút.', 'Còn {m} phút nữa, rồi mình nói chuyện.'],
   focusStop: ['Dừng'],
   focusGoOn: ['Làm tiếp'],
-  focusSure: ['Chắc chưa? Cậu vẫn giữ quả sồi, nhưng mất cơ hội sồi vàng.', 'Thật à? Chỉ còn chút xíu thôi mà…'],
+  focusSure: ['Chắc chưa? Cậu vẫn giữ quả sồi, nhưng buổi làm việc dừng ở đây.', 'Thật à? Chỉ còn chút xíu thôi mà…'],
   focusYes: ['Ừ, dừng'],
   focusNo: ['Không, làm tiếp'],
   focusStopped: ['Đã dừng: {m} phút, vẫn được {n} quả sồi.', 'Được, dừng nhé. {m} phút, {n} quả sồi.'],
   focusDone: ['Giỏi lắm, {m} phút! Của cậu đây: {n} quả sồi.', 'Xong buổi. Thêm {n} quả sồi vào kho.', '{m} phút hết sức. Tớ trả bằng sồi: {n}.'],
-  goldenAcorn: ['Và… một quả sồi vàng! Hiếm lắm đấy.', 'Khoan… SỒI VÀNG! Giữ kỹ nhé.'],
   hideHint: ['Xem này: tớ trèo lên trốn đây. Muốn tớ xuống thì kéo đuôi tớ.', 'Tớ lên mép trên màn hình đây. Đuôi tớ thò ra: kéo là tớ về.'],
   guideOpened: ['Tớ mở hướng dẫn rồi: mọi thứ tớ làm được, bấm là thử.', 'Sách hướng dẫn của tớ đây. Đọc đi, tớ giả vờ không nhìn.'],
   askFailed: ['Ờ… tớ lạc mất mạch rồi. Cậu nói lại được không?'],

@@ -131,6 +131,8 @@ export const fr = {
 
   // cerveau
   brainMissing: ["Je n'ai pas encore de cerveau. Je le télécharge ? C'est {size}, une seule fois."],
+  brainChoose: ["Je n'ai pas encore de cerveau. Choisis-en un, une seule fois (tu pourras changer dans les réglages) : le léger est rapide, le puissant plus fin. L'étoile, c'est celui qui convient à ta machine."],
+  brainTiers: ['Léger', 'Équilibré', 'Puissant'],
   brainYes: ['Vas-y'],
   brainLater: ['Plus tard'],
   brainStarted: ["C'est parti. Je te préviens quand j'ai fini."],
@@ -151,12 +153,11 @@ export const fr = {
   focusLeft: ['Encore {m} min. On tient !', 'Chut, on bosse. Encore {m} min.', 'Pas maintenant, je suis concentré. {m} min.', 'Encore {m} minutes, après on parle.'],
   focusStop: ['Arrêter'],
   focusGoOn: ['On continue'],
-  focusSure: ['Sûr ? Tu gardes tes glands, mais adieu le gland doré.', 'Vraiment ? Il restait si peu…'],
+  focusSure: ['Sûr ? Tu gardes tes glands, mais la session s’arrête là.', 'Vraiment ? Il restait si peu…'],
   focusYes: ['Oui, arrêter'],
   focusNo: ['Non, on bosse'],
   focusStopped: ['Session arrêtée : {m} min, {n} glands quand même.', 'D’accord, on arrête. {m} min, {n} glands au compteur.'],
   focusDone: ['Bien joué, {m} minutes ! Tiens : {n} glands pour toi.', 'Session terminée. {n} glands dans ta réserve.', '{m} minutes au taquet. Je te paie en glands : {n}.'],
-  goldenAcorn: ['Et… un gland doré ! Ça, c’est rare.', 'Attends… un GLAND DORÉ ! Garde-le précieusement.'],
   hideHint: ['Regarde : je monte me cacher là-haut. Pour me faire redescendre, tire ma queue.', 'Je file en haut de l’écran. Ma queue dépasse : tire dessus et je reviens.'],
   guideOpened: ['Je t’ai ouvert le guide : tout ce que je sais faire, à essayer en un clic.', 'Voilà mon mode d’emploi. Lis-le, je fais semblant de ne pas regarder.'],
   askFailed: ["Euh… j'ai perdu le fil. Tu peux répéter ?"],

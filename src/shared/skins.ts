@@ -19,25 +19,25 @@ export interface Item {
   id: string;
   kind: 'fur' | 'accessory';
   name: Record<Lang, string>;
-  /** Le prix en glands, ou en glands dorés (les plus rares) */
-  price: { acorns: number; golden: number };
+  /** Le prix en glands */
+  price: { acorns: number };
 }
 
 /** Les teintes de la fourrure d'origine : ombres profondes, ombres, pelage, reflets */
 const FUR_SOURCE = ['#2a3137', '#3c4248', '#646a6e', '#919498'];
 
 const FURS: (Item & { colors: string[] | null })[] = [
-  { id: 'gray', kind: 'fur', name: { fr: 'Gris d’origine', en: 'Original grey', vi: 'Xám nguyên bản' }, price: { acorns: 0, golden: 0 }, colors: null },
-  { id: 'fox', kind: 'fur', name: { fr: 'Renard roux', en: 'Red fox', vi: 'Cáo đỏ' }, price: { acorns: 300, golden: 0 }, colors: ['#4a2412', '#7a3a18', '#b4592a', '#df8a4e'] },
-  { id: 'snow', kind: 'fur', name: { fr: 'Neige', en: 'Snow', vi: 'Tuyết' }, price: { acorns: 300, golden: 0 }, colors: ['#6b7380', '#9aa1ab', '#c8ccd2', '#eceef1'] },
-  { id: 'night', kind: 'fur', name: { fr: 'Minuit', en: 'Midnight', vi: 'Nửa đêm' }, price: { acorns: 450, golden: 0 }, colors: ['#151b2e', '#222c4a', '#34446e', '#5b6fa3'] },
-  { id: 'gold', kind: 'fur', name: { fr: 'Or massif', en: 'Solid gold', vi: 'Vàng ròng' }, price: { acorns: 0, golden: 3 }, colors: ['#5a4210', '#8a6618', '#c39a2c', '#ecc95a'] },
+  { id: 'gray', kind: 'fur', name: { fr: 'Gris d’origine', en: 'Original grey', vi: 'Xám nguyên bản' }, price: { acorns: 0 }, colors: null },
+  { id: 'fox', kind: 'fur', name: { fr: 'Renard roux', en: 'Red fox', vi: 'Cáo đỏ' }, price: { acorns: 300 }, colors: ['#4a2412', '#7a3a18', '#b4592a', '#df8a4e'] },
+  { id: 'snow', kind: 'fur', name: { fr: 'Neige', en: 'Snow', vi: 'Tuyết' }, price: { acorns: 300 }, colors: ['#6b7380', '#9aa1ab', '#c8ccd2', '#eceef1'] },
+  { id: 'night', kind: 'fur', name: { fr: 'Minuit', en: 'Midnight', vi: 'Nửa đêm' }, price: { acorns: 450 }, colors: ['#151b2e', '#222c4a', '#34446e', '#5b6fa3'] },
+  { id: 'gold', kind: 'fur', name: { fr: 'Or massif', en: 'Solid gold', vi: 'Vàng ròng' }, price: { acorns: 900 }, colors: ['#5a4210', '#8a6618', '#c39a2c', '#ecc95a'] },
 ];
 
 const ACCESSORIES: Item[] = [
-  { id: 'glasses', kind: 'accessory', name: { fr: 'Lunettes rondes', en: 'Round glasses', vi: 'Kính tròn' }, price: { acorns: 150, golden: 0 } },
-  { id: 'shades', kind: 'accessory', name: { fr: 'Lunettes de soleil', en: 'Sunglasses', vi: 'Kính râm' }, price: { acorns: 250, golden: 0 } },
-  { id: 'crown', kind: 'accessory', name: { fr: 'Couronne', en: 'Crown', vi: 'Vương miện' }, price: { acorns: 0, golden: 2 } },
+  { id: 'glasses', kind: 'accessory', name: { fr: 'Lunettes rondes', en: 'Round glasses', vi: 'Kính tròn' }, price: { acorns: 150 } },
+  { id: 'shades', kind: 'accessory', name: { fr: 'Lunettes de soleil', en: 'Sunglasses', vi: 'Kính râm' }, price: { acorns: 250 } },
+  { id: 'crown', kind: 'accessory', name: { fr: 'Couronne', en: 'Crown', vi: 'Vương miện' }, price: { acorns: 700 } },
 ];
 
 export const SHOP = { furs: FURS as Item[], accessories: ACCESSORIES };

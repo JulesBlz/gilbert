@@ -2,6 +2,7 @@
 import '@fontsource/jersey-10/400.css';
 // VT323 : la police pixel qui a les accents vietnamiens (Jersey 10 ne les a pas)
 import '@fontsource/vt323/400.css';
+import '../shared/theme.css';
 import './style.css';
 
 import { api, isPreview } from './api';
@@ -13,7 +14,7 @@ import { Pet } from './pet';
 import { setSoundEnabled } from './audio';
 import { formatSize, greeting, lines, pick, setLang } from './lines';
 import type { BrainStatus, Command, Memory } from '../shared/types';
-import { ACORN, GOLDEN_ACORN } from '../shared/pixels';
+import { AcornField } from './acorns';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -49,6 +50,12 @@ async function main() {
   setLang(settings.lang);
   setSoundEnabled(!settings.muted);
   const pet = new Pet(settings, bubble, (x) => api.savePosition(x));
+  // les glands gagnés tombent du ciel et se ramassent à la souris
+  const acorns = new AcornField(() => pet.scale);
+  acorns.onCollect = (a) => api.collectAcorns(a);
+  api.pendingAcorns().then((p) => { if (p.acorns) acorns.rain(p.acorns, true); }).catch(() => {});
+  let acornZone: { x: number; y: number; w: number; h: number } | null = null;
+  if (isPreview) Object.assign(window, { __acorns: acorns });
   // aperçu navigateur : Gilbert accessible depuis la console pour le débogage
   if (isPreview) Object.assign(window, { __pet: pet, __wear: wearSkin, __draw: drawFrame });
 
@@ -153,11 +160,24 @@ async function main() {
   window.addEventListener('blur', () => chat.close());
 
 
-  const offerDownload = () => {
+  const offerDownload = async () => {
     if (brain.state !== 'missing' && brain.state !== 'error') return;
-    const size = formatSize(brain.state === 'missing' ? brain.size : 7.1e9);
-    pet.say(pick(lines.brainMissing, { size }), [
-      { label: pick(lines.brainYes), run: () => { api.brainDownload(); pet.say(pick(lines.brainStarted)); } },
+    const choices = await api.brainModels().catch(() => []);
+    if (!choices.length) {
+      const size = formatSize(brain.state === 'missing' ? brain.size : 7.1e9);
+      pet.say(pick(lines.brainMissing, { size }), [
+        { label: pick(lines.brainYes), run: () => { api.brainDownload(); pet.say(pick(lines.brainStarted)); } },
+        { label: pick(lines.brainLater), run: () => pet.say(pick(lines.brainLaterOk)) },
+      ]);
+      return;
+    }
+    // trois cerveaux : léger, équilibré, puissant ; l'étoile marque celui qui convient à la machine
+    const tiers = ['light', 'balanced', 'powerful'];
+    pet.say(pick(lines.brainChoose), [
+      ...choices.map((c) => ({
+        label: `${c.recommended ? '★ ' : ''}${lines.brainTiers[tiers.indexOf(c.tier)]} · ${formatSize(c.size)}`,
+        run: () => { api.brainUse(c.id); pet.say(pick(lines.brainStarted)); },
+      })),
       { label: pick(lines.brainLater), run: () => pet.say(pick(lines.brainLaterOk)) },
     ]);
   };
@@ -238,11 +258,14 @@ async function main() {
           focusTag.hidden = false;
         } else {
           focusTag.hidden = true;
-          // fin de session : un gland tombe (doré, avec un peu de chance)
-          pet.endWork(cmd.done ? (cmd.golden ? GOLDEN_ACORN : ACORN) : null);
+          // fin de session : il se réjouit (les glands gagnés tombent à part, « rain »)
+          pet.endWork(cmd.done);
           const said = pick(cmd.done ? lines.focusDone : lines.focusStopped, { m: cmd.minutes, n: cmd.acorns });
-          setTimeout(() => pet.say(cmd.golden ? `${said} ${pick(lines.goldenAcorn)}` : said), cmd.done ? 900 : 0);
+          setTimeout(() => pet.say(said), cmd.done ? 900 : 0);
         }
+        break;
+      case 'rain':
+        if (cmd.acorns > 0) setTimeout(() => acorns.rain(cmd.acorns), 600);
         break;
       case 'offer': {
         // une aide discrète : il ne bouge pas ; la bulle s'en va si on ne la prend pas
@@ -311,6 +334,7 @@ async function main() {
 
   window.addEventListener('mousemove', (e) => {
     pet.pointerMove(e.clientX, e.clientY);
+    acorns.pointer(e.clientX, e.clientY);
     updateCapture(e.clientX, e.clientY);
   });
   window.addEventListener('mousedown', (e) => {
@@ -403,10 +427,18 @@ async function main() {
 
   let last = performance.now();
   let dirty = { x: 0, y: 0, w: innerWidth, h: innerHeight };
+  let lastFetch = 0;
   const loop = (now: number) => {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     pet.update(dt);
+    acorns.update(dt);
+    // il va ramasser lui-même les glands tombés : il y marche, et les prend en arrivant
+    if (pet.isIdle() && !pet.quiet && !pet.holding) {
+      const g = acorns.nearest(pet.x);
+      if (g && Math.abs(g.x - pet.x) < pet.scale * 12) acorns.pointer(g.x, g.y - pet.scale * 4);
+      else if (g && now - lastFetch > 3000) { lastFetch = now; pet.walkTo(g.x); }
+    }
     const free = !asking && !chat.open && (pet.isIdle() || pet.onCeiling || (pet.working && !bubble.visible));
     if (unanswered && !unanswered.queued && !bubble.visible && pet.isIdle()) {
       unanswered.goneAt ||= now;
@@ -432,6 +464,8 @@ async function main() {
       pet.say(pick(lines.learned, { fact: notes.shift()! }));
     }
     ctx.clearRect(dirty.x, dirty.y, dirty.w, dirty.h);
+    if (acornZone) ctx.clearRect(acornZone.x, acornZone.y, acornZone.w, acornZone.h);
+    acornZone = acorns.draw(ctx);
     dirty = pet.draw(ctx);
     if (chat.open) chat.place(pet.anchor.x, pet.anchor.y);
     if (pet.focusEnds) {

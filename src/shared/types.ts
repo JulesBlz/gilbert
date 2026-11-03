@@ -25,7 +25,7 @@ export const SPEAK: Record<Lang, string> = {
 export type Humor = 'sober' | 'normal' | 'unbearable';
 
 /** Taille d'un pixel de Gilbert à l'écran, en px CSS */
-export const PIXEL: Record<Size, number> = { S: 3, M: 4, L: 5 };
+export const PIXEL: Record<Size, number> = { S: 2, M: 4, L: 6 };
 
 export interface Settings {
   size: Size;
@@ -46,6 +46,8 @@ export interface Settings {
   tried: string[];
   /** Les 10 glands de chaque essai du guide déjà ramassés */
   collected: string[];
+  /** Le cerveau choisi (id d'un modèle de brain/models.ts) ; vide : celui qui convient à la mémoire de la machine */
+  brainModel: string;
   /** Le premier lancement de l'appli installée est fait (installeur rangé, poubelle sur le bureau) */
   installed: boolean;
   /** Ce qu'il porte (pelage, accessoire) et ce qu'on lui a offert à la boutique */
@@ -53,6 +55,8 @@ export interface Settings {
   owned: string[];
   /** Il commente de temps en temps ce que tu écoutes */
   musicComments: boolean;
+  /** Il peut chercher sur internet (DuckDuckGo) pour répondre : la seule fonction qui sort de l'ordinateur */
+  webSearch: boolean;
   /** Il tient le carnet de bord (applis utilisées, sessions, note du soir, résumé de la semaine) */
   journal: boolean;
   /** Il propose son aide sur ce que tu copies (traduire, résumer, corriger, expliquer) */
@@ -85,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skin: { fur: 'gray', accessory: '' },
   owned: ['gray'],
   musicComments: true,
+  webSearch: true,
   journal: true,
   clipboard: true,
   moods: true,
@@ -92,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   focusMinutes: 25,
   mailPrimaryOnly: true,
   messages: true,
+  brainModel: '',
 };
 
 // ---------- carnet de bord ----------
@@ -114,8 +120,8 @@ export interface JournalData {
   days: Record<string, JournalDay>;
   /** Résumé de la semaine, par lundi (AAAA-MM-JJ) */
   weeks: Record<string, string>;
-  /** Glands gagnés en travaillant (un par minute), dont les glands dorés */
-  acorns: { total: number; golden: number; spent?: { acorns: number; golden: number } };
+  /** Glands gagnés en travaillant (un par minute) */
+  acorns: { total: number; spent?: { acorns: number }; pending?: { acorns: number } };
   /** Premier lancement de Gilbert (pour l'anniversaire de votre rencontre) */
   firstSeen: number;
 }
@@ -231,6 +237,24 @@ export type BrainStatus =
   | { state: 'ready'; model: string }
   | { state: 'error'; model: string; message: string };
 
+/** Un cerveau qu'on peut choisir (léger, équilibré, puissant) */
+export interface BrainChoice {
+  id: string;
+  tier: 'light' | 'balanced' | 'powerful';
+  label: string;
+  /** Taille du téléchargement, en octets */
+  size: number;
+  /** RAM conseillée, en Go */
+  minRamGB: number;
+  downloaded: boolean;
+  /** Celui qui tourne en ce moment (ou celui qu'on télécharge pour la première fois) */
+  active: boolean;
+  /** Celui qui convient le mieux à la mémoire de cette machine */
+  recommended: boolean;
+  /** Avancement (0 à 1) de son téléchargement en arrière-plan, sinon null */
+  pulling: number | null;
+}
+
 /** Morceaux de réponse du cerveau, rattachés à une question par `id` */
 export interface BrainEvent {
   id: number;
@@ -251,8 +275,11 @@ export type Command =
   | { type: 'hide' }
   /** On quitte : il saute dans sa poubelle */
   | { type: 'bye'; home: Home | null }
+  /** Des glands viennent d'être gagnés : ils tombent du haut de l'écran */
+  | { type: 'rain'; acorns: number }
   /** Sa fenêtre s'ouvre (son bord du haut, en px de l'écran de Gilbert) ou se ferme (null) */
-  | { type: 'perch'; at: { x: number; y: number; width: number } | null }
+  /** Où il s'assoit : le bord d'une fenêtre (x, largeur), ou un point précis (`spot`, centre de ses pieds) */
+  | { type: 'perch'; at: { x: number; y: number; width: number; spot?: number } | null }
   /** On essaie quelque chose depuis la fenêtre : il saute sur le côté, hors de la fenêtre (`x0` à `x1`) */
   | { type: 'aside'; x0: number; x1: number }
   | { type: 'quiet'; on: boolean }
@@ -260,7 +287,7 @@ export type Command =
   | { type: 'thinking'; on: boolean }
   /** Session de travail : il bosse avec toi jusqu'à `endsAt` ; à la fin, éventuellement un trésor */
   | { type: 'focus'; on: true; endsAt: number; minutes: number }
-  | { type: 'focus'; on: false; done: boolean; minutes: number; acorns: number; golden: boolean }
+  | { type: 'focus'; on: false; done: boolean; minutes: number; acorns: number }
   /** Une tenue pour la bulle qui suit (il parle de la météo) */
   /** Une aide discrète sur ce que tu viens de copier : il ne bouge pas, juste une petite bulle */
   /**
@@ -300,6 +327,10 @@ export interface GilbertApi {
   introDone(answers: Partial<Profile>): void;
   /** Son icône de poubelle sur le bureau (appli installée, Mac), d'où il sort ; null sinon */
   home(): Promise<Home | null>;
+  /** Les glands gagnés qui attendent au sol (pas encore ramassés) */
+  pendingAcorns(): Promise<{ acorns: number }>;
+  /** Des glands ramassés à la souris : ils rejoignent le solde */
+  collectAcorns(acorns: number): void;
   /** Une fonction du guide a servi (vue seulement d'ici : on l'a fait descendre par la queue) */
   tried(key: 'hide'): void;
   /** Lecture / pause / suivant / précédent, ou juste « qu'est-ce qui joue ? » */
@@ -311,6 +342,10 @@ export interface GilbertApi {
   savePosition(x: number): void;
   onCommand(cb: (cmd: Command) => void): void;
   brainStatus(): Promise<BrainStatus>;
+  /** Les cerveaux qu'on peut choisir */
+  brainModels(): Promise<BrainChoice[]>;
+  /** Choisit ce cerveau (le télécharge d'abord s'il le faut) */
+  brainUse(id: string): void;
   brainDownload(): void;
   brainAsk(id: number, text: string): void;
   brainCancel(id: number): void;
@@ -352,6 +387,9 @@ export interface PrefsState {
   /** La vision existe sur ce système, et la permission d'écran (Mac) */
   vision: { supported: boolean; permission: 'granted' | 'denied' | 'not-determined' | 'unsupported' };
   brain: BrainStatus;
+  brains: BrainChoice[];
+  /** La mémoire de cette machine, en Go */
+  ramGB: number;
   /** Ce qui est branché (pour « bien démarrer ») */
   mail: boolean;
   calendar: boolean;
@@ -361,7 +399,7 @@ export interface PrefsState {
   /** Ta journée, pour l'Accueil */
   today: Today;
   /** Ce qu'il te reste à dépenser à la boutique */
-  wallet: { acorns: number; golden: number };
+  wallet: { acorns: number };
 }
 
 export interface Today {
@@ -378,6 +416,8 @@ export interface Today {
 
 export type PrefsAction =
   | 'brief' | 'focusStop' | 'tidyNow' | 'openData' | 'downloadBrain'
+  /** `arg` : l'id du cerveau à utiliser (il est téléchargé d'abord s'il le faut) */
+  | 'useBrain'
   /** `arg` : la durée en minutes */
   | 'focusStart'
   /** `arg` : le texte écrit d'avance dans le champ */
@@ -389,7 +429,7 @@ export type PrefsAction =
   | 'taskSplit'
   /** La boutique : acheter l'objet `arg`, ou le porter (un accessoire porté se retire) */
   | 'buy' | 'wear';
-export type SettingsTab = 'home' | 'guide' | 'shop' | 'journal' | 'carnet' | 'connections' | 'general';
+export type SettingsTab = 'home' | 'chat' | 'guide' | 'shop' | 'journal' | 'carnet' | 'connections' | 'general';
 
 /** API de l'onglet Réglages, sous `window.prefs` */
 export interface PrefsApi {
@@ -403,6 +443,39 @@ export interface PrefsApi {
   onJournal(cb: (d: JournalData) => void): void;
   /** Le menu demande un autre onglet alors que la fenêtre est déjà ouverte */
   onTab(cb: (tab: SettingsTab) => void): void;
+  /** Cet onglet est affiché (Gilbert s'assoit sur la branche pour discuter, sur le bord du haut sinon) */
+  shown(tab: SettingsTab): void;
+}
+
+/** Un message d'une discussion longue */
+export interface ChatMessage {
+  role: 'user' | 'gilbert';
+  text: string;
+  at: number;
+}
+export interface ChatThread {
+  id: string;
+  title: string;
+  updated: number;
+  messages: ChatMessage[];
+}
+export interface ChatSummary {
+  id: string;
+  title: string;
+  updated: number;
+  count: number;
+}
+
+/** API de l'onglet Discussion, sous `window.chat` */
+export interface ChatApi {
+  list(): Promise<ChatSummary[]>;
+  get(id: string): Promise<ChatThread | null>;
+  create(): Promise<ChatThread>;
+  remove(id: string): void;
+  /** Pose une question dans cette discussion ; la réponse arrive par `onEvent` */
+  send(id: string, text: string): void;
+  cancel(id: string): void;
+  onEvent(cb: (ev: { chat: string; kind: 'chunk' | 'done' | 'error'; text: string }) => void): void;
 }
 
 /** API de la fenêtre du carnet, sous `window.carnet` */

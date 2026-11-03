@@ -77,6 +77,30 @@ export async function detectProblem(brain: Brain, glance: { app: string; title: 
   };
 }
 
+/**
+ * Une faute annoncée est relue en grand (le même endroit, agrandi trois fois) : `text` est cette
+ * relecture. Le modèle dit si le mot est vraiment mal écrit, et comment il s'écrit.
+ */
+export async function confirmTypo(brain: Brain, text: string, quote: string, lang: Lang) {
+  const r = await brain.extract<{ faute: boolean; correction: string }>([
+    'Voici un court passage de ce que ton humain est en train d’écrire, relu en grand et avec soin.',
+    `On soupçonne une faute dans : « ${quote} ».`,
+    'Dis si c’est VRAIMENT une faute d’orthographe, de grammaire ou de frappe, en tenant compte de la langue et du contexte.',
+    'Ce ne sont PAS des fautes : un nom propre, une marque, une abréviation, de l’argot ou du langage SMS courant, un mot étranger ou technique, du code, une adresse, une mise en forme.',
+    'Au moindre doute : faute = false. Si le passage ne contient pas exactement ces mots, faute = false.',
+    `« correction » : la bonne écriture du passage fautif, en ${SPEAK[lang]} (vide si ce n’est pas une faute).`,
+    '',
+    'Passage :',
+    '"""',
+    text,
+    '"""',
+  ].join('\n'), { type: 'object', properties: { faute: { type: 'boolean' }, correction: { type: 'string' } }, required: ['faute', 'correction'] });
+  // une « faute » qui ne diffère de sa correction que par des lettres qu'on confond à l'écran (l/I, 0/O, rn/m) est une erreur de lecture
+  const look = (s: string) => normalize(s).replace(/[l1]/g, 'i').replace(/0/g, 'o').replace(/rn/g, 'm');
+  if (r?.faute && look(r.correction) === look(quote)) return { ...r, faute: false };
+  return r;
+}
+
 /** La remarque vaut d'être dite : problème certain, et le passage cité est vraiment à l'écran */
 export function worthSaying(d: Detection, text: string) {
   if (d.problem === 'aucun' || !d.sure || !d.remark) return false;

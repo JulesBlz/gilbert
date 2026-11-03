@@ -1,21 +1,5 @@
 /* complète carnet.css : onglets et réglages */
 
-nav.tabs {
-  display: flex;
-  gap: 6px;
-  margin: 0 0 16px;
-}
-nav.tabs button {
-  color: var(--ink);
-  background: transparent;
-  box-shadow: inset 0 0 0 2px var(--ink);
-}
-nav.tabs button.on { color: var(--paper); background: var(--ink); }
-
-/* choix parmi quelques valeurs : boutons accolés */
-.seg { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-.seg button { color: var(--ink); background: transparent; box-shadow: inset 0 0 0 2px var(--line); }
-.seg button.on { box-shadow: inset 0 0 0 2px var(--ink); background: var(--card); text-decoration: underline; text-underline-offset: 3px; }
 .label { color: var(--muted); margin-bottom: 4px; }
 
 .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -32,22 +16,17 @@ nav.tabs { flex-wrap: wrap; }
 header img.logo { width: 72px; height: 72px; image-rendering: pixelated; }
 
 /* interrupteurs : la case, le nom, une ligne d'explication */
-label.switch { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; cursor: pointer; }
-label.switch input { width: auto; margin: 4px 0 0; accent-color: var(--ink); }
+label.switch { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+label.switch input { margin: 2px 0 0; }
 label.switch b { font-weight: 400; display: block; }
-label.switch small { display: block; color: var(--muted); font-size: 18px; line-height: 1.1; }
+label.switch small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: var(--lh); }
 label.switch small.warn { color: var(--danger); }
-
-/* pour bien démarrer : une étape par ligne */
-.step { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.step b { font-weight: 400; display: block; }
-.step small { display: block; color: var(--muted); font-size: 18px; }
 
 /* les glands */
 section.acorns { display: flex; align-items: center; gap: 14px; }
-section.acorns b { font-weight: 400; font-size: 26px; display: block; }
-section.acorns small { display: block; color: var(--muted); font-size: 18px; }
-canvas.acorn { width: 30px; height: 30px; image-rendering: pixelated; flex: none; }
+section.acorns b { font-weight: 400; font-size: var(--fs-l); display: block; }
+section.acorns small { display: block; color: var(--muted); font-size: var(--fs-xs); }
+canvas.acorn { width: 20px; height: 20px; image-rendering: pixelated; flex: none; }
 
 /* l'engrenage : Réglages et Connexions, à part des onglets de tous les jours */
 button.gear { margin-left: auto; padding: 4px; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
@@ -55,11 +34,10 @@ button.gear svg { display: block; fill: currentColor; }
 button.gear:hover, button.gear.on { color: var(--ink); }
 header button.gear + button.close { margin-left: 6px; }
 nav[hidden] { display: none; }
-nav.gear-tabs button:first-child { box-shadow: none; color: var(--muted); padding-left: 0; }
 
 /* aujourd'hui : bonjour, date et météo */
 .hello { margin: 0 0 18px; }
-.hello b { display: block; font-weight: 400; font-size: 30px; }
+.hello b { display: block; font-weight: 400; font-size: var(--fs-xl); }
 .hello span { color: var(--muted); }
 
 /* ta journée : une ligne par rendez-vous ou échéance */
@@ -68,7 +46,7 @@ nav.gear-tabs button:first-child { box-shadow: none; color: var(--muted); paddin
 .day .line em.late { color: var(--danger); }
 .day .line .when { color: var(--muted); }
 .day label.task { cursor: pointer; }
-.day label.task input { width: auto; margin: 0; accent-color: var(--ink); }
+.day label.task input { margin: 0; }
 .day .waiting { margin: 10px 0 0; }
 
 /* session de travail : le bloc clignote quand le guide y renvoie */
@@ -78,21 +56,21 @@ section.flash { animation: flash 0.5s steps(2) 3; }
 /* ta liste : groupes, case pixel, titre, pastille de date, × au survol */
 .todo .add { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .todo .add input { flex: 1; }
-.todo .group { margin: 12px 0 2px; color: var(--muted); font-size: 17px; }
+.todo .group { margin: 12px 0 2px; color: var(--muted); font-size: var(--fs-xs); }
 .todo .group-late { color: var(--danger); }
 .task { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 4px; border-bottom: 2px solid var(--line); }
 .task:hover { background: var(--paper); }
-button.tick { flex: none; width: 18px; height: 18px; padding: 0; background: #fff; box-shadow: inset 0 0 0 2px var(--ink); display: grid; place-items: center; cursor: pointer; }
+button.tick { flex: none; width: 18px; height: 18px; padding: 0; background: var(--white); box-shadow: inset 0 0 0 2px var(--ink); display: grid; place-items: center; cursor: pointer; }
 button.tick:hover { background: var(--paper); }
 button.tick.on { background: var(--ink); color: var(--paper); }
 button.tick svg { fill: currentColor; display: block; }
-.task .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; padding: 3px 0; }
+.task .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; padding: 4px 0; }
 .task input.name { padding: 2px 4px; border-width: 2px; }
 .task.done .name { text-decoration: line-through; color: var(--muted); cursor: default; }
 .chip-box { position: relative; flex: none; }
-button.chip { width: 112px; height: 26px; font-size: 17px; padding: 0 6px 1px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 2px var(--line); }
-.task:hover button.chip { background: #fff; }
-button.chip.late { color: #fff; background: var(--danger); box-shadow: none; }
+button.chip { width: 112px; height: 26px; font-size: var(--fs-xs); padding: 0 6px 2px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 2px var(--line); }
+.task:hover button.chip { background: var(--white); }
+button.chip.late { color: var(--white); background: var(--danger); box-shadow: none; }
 /* pas de date : la même case, en pointillés, visible au survol (toujours dans le champ d'ajout) */
 button.chip.unset { color: var(--muted); background: transparent; box-shadow: none; outline: 2px dashed var(--line); outline-offset: -2px; opacity: 0; }
 .task:hover button.chip.unset, button.chip.unset:focus, .add button.chip.unset { opacity: 1; }
@@ -106,72 +84,329 @@ input.picker { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
 /* stats du journal : des tuiles */
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
 .tile { background: var(--paper); padding: 8px 10px; }
-.tile small { display: block; color: var(--muted); font-size: 17px; line-height: 1; }
-.tile b { display: block; font-weight: 400; font-size: 28px; line-height: 1.1; }
-.tile span { display: block; color: var(--muted); font-size: 16px; line-height: 1.05; }
+.tile small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 18px; }
+.tile b { display: block; font-weight: 400; font-size: var(--fs-xl); line-height: var(--lh); }
+.tile span { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: var(--lh); }
 
 /* le guide : des cartes, la phrase à dire, et toujours le même bouton au même endroit */
-h2 small.count { float: right; color: var(--muted); font-size: 18px; margin-top: 6px; }
-h3 { font-weight: 400; font-size: 20px; color: var(--muted); margin: 12px 0 6px; }
+h2 small.count { float: right; color: var(--muted); font-size: var(--fs-xs); margin-top: 6px; }
+h3 { font-weight: 400; font-size: var(--fs-m); color: var(--muted); margin: 12px 0 6px; }
 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .card { background: var(--paper); padding: 10px 12px; display: flex; flex-direction: column; position: relative; }
 
 /* la récompense d'un essai : un bouton à côté d'« Essayer », puis « +10 glands » qui monte et s'efface */
 .card-actions { margin-top: auto; display: flex; align-items: center; gap: 8px; position: relative; }
 .card-actions button.try { margin-top: 0; }
-button.reward { display: flex; align-items: center; gap: 6px; font-size: 18px; padding: 2px 10px 3px 6px; color: var(--ink); background: #f3dc9a; box-shadow: inset 0 0 0 2px #9a7b2c; animation: shine 1.6s steps(2) infinite; }
+button.reward { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); padding: 2px 10px 4px 6px; color: var(--ink); background: var(--gold-bg); box-shadow: inset 0 0 0 2px var(--gold-ink); animation: shine 1.6s steps(2) infinite; }
 button.reward canvas.acorn { width: 20px; height: 20px; }
 button.reward.gone { visibility: hidden; }
-@keyframes shine { 50% { background: #f8e9bd; } }
-.reward-pop { position: absolute; left: 70px; bottom: 4px; color: #9a7b2c; font-size: 22px; white-space: nowrap; pointer-events: none; animation: pop 0.9s ease-out forwards; }
+@keyframes shine { 50% { background: var(--gold-bg-2); } }
+.reward-pop { position: absolute; left: 70px; bottom: 4px; color: var(--gold-ink); font-size: var(--fs-m); white-space: nowrap; pointer-events: none; animation: pop 0.9s ease-out forwards; }
 @keyframes pop {
   0% { transform: translateY(0); opacity: 0; }
   20% { opacity: 1; }
   100% { transform: translateY(-34px); opacity: 0; }
 }
 
-.card b { font-weight: 400; font-size: 24px; display: block; margin-bottom: 2px; }
+.card b { font-weight: 400; font-size: var(--fs-l); display: block; margin-bottom: 2px; }
 .card.tried > b::after { content: ' ✓'; color: var(--muted); }
-.card p { margin: 0 0 6px; color: var(--muted); font-size: 18px; line-height: 1.15; }
-.card q { display: block; margin: 0 0 8px; font-size: 18px; line-height: 1.1; }
+.card p { margin: 0 0 6px; color: var(--muted); font-size: var(--fs-xs); line-height: var(--lh); }
+.card q { display: block; margin: 0 0 8px; font-size: var(--fs-xs); line-height: var(--lh); }
 .card q::before { content: '« '; }
 .card q::after { content: ' »'; }
 html[lang="en"] .card q::before { content: '"'; }
 html[lang="en"] .card q::after { content: '"'; }
-.card button.try { font-size: 18px; padding: 2px 12px 3px; }
+.card button.try { font-size: var(--fs-xs); padding: 2px 12px 4px; }
 .card.tried button.try { color: var(--ink); background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
 
 /* session de travail : un curseur pixel (piste, poignée carrée), la durée, et « C'est parti » */
 .session-pick { display: flex; align-items: center; gap: 12px; }
 input.slider { flex: 1; -webkit-appearance: none; appearance: none; height: 20px; padding: 0; border: 0; background: transparent; cursor: pointer; }
-input.slider::-webkit-slider-runnable-track { height: 6px; background: var(--paper); box-shadow: inset 0 0 0 2px var(--ink); }
-input.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 20px; margin-top: -7px; background: var(--ink); box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--card); }
+input.slider::-webkit-slider-runnable-track { height: 8px; background: var(--paper); box-shadow: inset 0 0 0 2px var(--ink); }
+input.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 20px; margin-top: -6px; background: var(--ink); }
 input.slider:focus { border: 0; }
-.slider-value { font-weight: 400; font-size: 24px; min-width: 72px; text-align: right; }
+.slider-value { font-weight: 400; font-size: var(--fs-l); min-width: 72px; text-align: right; }
 
 /* une tâche découpée : ses étapes en retrait, l'avancement, le bouton « Étapes » au survol */
 .task.step { padding-left: 32px; min-height: 30px; border-bottom-style: dotted; }
-.task .progress { flex: none; color: var(--muted); font-size: 17px; }
+.task .progress { flex: none; color: var(--muted); font-size: var(--fs-xs); }
 /* une étape : pas de date, la colonne des actions garde l'alignement */
 .task.step .row-actions { margin-left: 118px; }
-.task button.split { flex: none; font-size: 17px; padding: 1px 8px 2px; color: var(--muted); background: transparent; box-shadow: inset 0 0 0 2px var(--line); opacity: 0; }
+.task button.split { flex: none; font-size: var(--fs-xs); padding: 2px 8px 2px; color: var(--muted); background: transparent; box-shadow: inset 0 0 0 2px var(--line); opacity: 0; }
 .task:hover button.split, .task button.split:disabled { opacity: 1; }
 .task button.split:hover { color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
 
-/* la boutique : Gilbert en grand, ton solde ; puis des cartes (aperçu, nom, prix, bouton) */
-.shop-hero { display: flex; align-items: center; gap: 18px; }
-.shop-hero canvas.hero { flex: none; width: 180px; height: 138px; image-rendering: pixelated; background: var(--paper); box-shadow: inset 0 0 0 2px var(--line); }
-.shop-hero h2 { margin-bottom: 6px; }
-.wallet { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 24px; }
+.wallet { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: var(--fs-l); }
 .wallet canvas + * { margin-right: 8px; }
 canvas.acorn-small { width: 20px; height: 20px; image-rendering: pixelated; flex: none; }
-.items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.items { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
 .item { background: var(--paper); padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; box-shadow: inset 0 0 0 2px transparent; }
 .item:hover { box-shadow: inset 0 0 0 2px var(--ink); }
 .item.worn { box-shadow: inset 0 0 0 2px var(--ink); background: var(--card); }
-.item canvas.thumb { image-rendering: pixelated; height: 69px; width: auto; }
-.item b { font-weight: 400; font-size: 20px; line-height: 1; }
-.item .price { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 18px; min-height: 20px; }
-.item button { width: 100%; font-size: 18px; padding: 3px 6px 4px; }
-.item button.confirm { background: #9a7b2c; }
+.item canvas.thumb { image-rendering: pixelated; }
+.item b { font-weight: 400; font-size: var(--fs-m); line-height: 18px; }
+.item .price { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--fs-xs); min-height: 20px; }
+.item button { width: 100%; font-size: var(--fs-xs); padding: 4px 6px 4px; }
 .item button:disabled { opacity: 0.6; cursor: default; }
+
+/* les trois cerveaux */
+.items.brains { grid-template-columns: 1fr; }
+.item.brain { align-items: flex-start; text-align: left; gap: 4px; }
+.item.brain button { align-self: flex-end; }
+.item.brain .price { align-self: flex-end; }
+.tag { font-size: var(--fs-xs); background: var(--ink); color: var(--paper); padding: 2px 6px; }
+.tag.warn { background: var(--danger); }
+
+/* ======================================================================================
+   Le design du menu (les couleurs, tailles et boutons viennent de shared/theme.css)
+   ====================================================================================== */
+body { color: var(--ink); }
+main { inset: 6px; background: var(--bg); padding: 0 20px 30px; }
+
+/* le panneau : le rail des onglets à gauche, la page à droite */
+main { display: flex; padding: 0; overflow: hidden; }
+.content { flex: 1; min-width: 0; overflow-y: auto; padding: 0 20px 30px; scrollbar-width: thin; }
+.content::-webkit-scrollbar { width: 8px; }
+.content::-webkit-scrollbar-thumb { background: var(--line); }
+.content > header { padding: 16px 20px 8px; }
+h1 { display: flex; align-items: center; gap: var(--sp-3); font-weight: 400; font-size: var(--fs-m); }
+h1::before { content: ''; width: 8px; height: 24px; background: var(--accent); box-shadow: 4px 4px 0 var(--ink); flex: none; }
+
+/* le rail : sombre, ses icônes se lisent d'un coup ; l'onglet ouvert s'allume en orange ; en bas, les glands et l'engrenage */
+.rail { width: 92px; flex: none; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) 8px; background: var(--ink); overflow-y: auto; scrollbar-width: none; }
+.rail .logo { width: 32px; height: 32px; margin: 0 auto var(--sp-1); image-rendering: pixelated; flex: none; }
+.rail nav.tabs { display: flex; flex-direction: column; gap: var(--sp-1); background: transparent; padding: 0; margin: 0; }
+.rail nav.tabs[hidden] { display: none; }
+.rail .rail-fill { flex: 1; min-height: var(--sp-2); }
+.rail button.tab, .rail button.gear { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); width: 100%; padding: 6px 2px 4px; color: var(--on-dark-muted); background: transparent; box-shadow: none; transform: none; margin: 0; font-size: var(--fs-xs); line-height: 18px; }
+.rail button.tab svg, .rail button.gear svg { fill: currentColor; display: block; }
+.rail button.tab span:not(.icon), .rail button.gear span:not(.icon) { display: block; font-size: var(--fs-xs); }
+.rail button.tab:hover, .rail button.gear:hover { color: var(--white); background: var(--tab-hover); }
+.rail button.tab.on, .rail button.gear.on { color: var(--ink); background: var(--accent); }
+.rail button.tab.back { flex-direction: row; justify-content: center; padding: 6px 2px; }
+.rail button.tab.back span:not(.icon) { display: none; }
+
+/* les glands : toujours là, avec un bouton vers la boutique */
+.purse { display: flex; flex-direction: column; gap: var(--sp-1); padding: 6px; background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 var(--bw) var(--line); }
+.purse .count { display: flex; align-items: center; justify-content: center; gap: var(--sp-1); }
+.purse .count b { font-weight: 400; font-size: var(--fs-l); line-height: 18px; }
+.purse canvas.acorn { width: 20px; height: 20px; }
+
+/* les blocs : une carte à coins crantés ; le premier de chaque page est « le » bloc, avec son relief */
+section { background: var(--card); padding: var(--sp-3) var(--sp-4) var(--sp-4); margin: 0 0 var(--sp-4); filter: drop-shadow(4px 4px 0 var(--shadow)); }
+h2 { display: flex; align-items: center; gap: 8px; font-size: var(--fs-l); margin: 0 0 var(--sp-3); }
+h2::before { content: ''; width: 12px; height: 12px; background: var(--accent); box-shadow: 4px 4px 0 var(--ink); flex: none; }
+h3 { font-size: var(--fs-m); }
+.empty { color: var(--muted); margin: var(--sp-1) 0 var(--sp-2); }
+.hello b { font-size: var(--fs-xxl); }
+.hello span { color: var(--muted); }
+
+/* un bandeau, pas un bloc : ce qu'il reste à brancher */
+.setup .buttons { margin-top: var(--sp-1); }
+
+/* les choix : le choix actuel est plein, les autres creux */
+.seg { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.seg button.on { color: var(--card); background: var(--ink); box-shadow: none; }
+.label { color: var(--muted); margin-bottom: var(--sp-1); }
+
+/* les cartes (guide, boutique) : creuses au repos, elles se soulèvent sous la souris */
+/* à l'intérieur d'un bloc : des fonds, pas de cadres (un cadre dans un cadre alourdit) */
+.card, .item, .tile { background: var(--bg); box-shadow: none; }
+.card:hover, .item:hover { box-shadow: inset 0 0 0 var(--bw) var(--ink); }
+.card.tried { background: var(--card); }
+.card.tried > b::after { content: ' ✓'; color: var(--good); }
+.item.worn { box-shadow: inset 0 0 0 var(--bw-strong) var(--accent); background: var(--card); }
+.item button.locked { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.item button.locked svg { fill: currentColor; }
+.card button.try { background: var(--ink); color: var(--card); box-shadow: none; margin: 0; }
+.card.tried button.try { color: var(--ink); background: transparent; box-shadow: inset 0 0 0 var(--bw) var(--ink); }
+.cards { gap: var(--sp-3); }
+
+/* la jauge du guide */
+.meter { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); }
+.meter-track { width: 90px; height: 12px; background: var(--bg); box-shadow: inset 0 0 0 var(--bw) var(--ink); display: block; }
+.meter-track i { display: block; height: 100%; background: var(--accent); }
+.meter small { font-size: var(--fs-xs); color: var(--muted); }
+
+/* les repères qui comptent */
+.tiles { grid-template-columns: repeat(2, 1fr); }
+.tile b { font-size: var(--fs-xl); }
+section.acorns b { font-size: var(--fs-xl); }
+.session-pick .slider-value { color: var(--accent-dark); font-size: var(--fs-l); }
+label.switch { padding: 6px 0; border-bottom: var(--bw) solid var(--line); margin-bottom: 0; }
+label.switch:last-child { border-bottom: 0; }
+details { margin-bottom: var(--sp-3); }
+summary { cursor: pointer; color: var(--ink); font-size: var(--fs-m); margin-bottom: var(--sp-2); list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: '▸ '; color: var(--accent-dark); }
+details[open] > summary::before { content: '▾ '; }
+
+/* les étiquettes */
+.tag { display: inline-block; font-size: var(--fs-xs); line-height: 18px; padding: 4px 6px 4px; background: var(--accent); color: var(--ink); }
+.tag.on { background: var(--ink); color: var(--card); }
+.tag.warn { background: var(--danger); color: var(--white); }
+
+/* les cerveaux : trois lignes */
+.brain-list { display: flex; flex-direction: column; gap: var(--sp-1); margin-top: var(--sp-2); }
+.brain-row { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-1); border-bottom: var(--bw) dotted var(--line); }
+.brain-row:last-child { border-bottom: 0; }
+.brain-row.on .name b { color: var(--accent-dark); }
+.brain-row .radio { width: 14px; height: 14px; flex: none; background: var(--white); box-shadow: inset 0 0 0 var(--bw) var(--ink); }
+.brain-row.on .radio { background: var(--accent); }
+.brain-row .name { flex: 1; min-width: 0; }
+.brain-row .name b { font-weight: 400; display: block; }
+.brain-row .name small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 18px; }
+.brain-row .meta { color: var(--muted); font-size: var(--fs-xs); }
+.brain-row button { font-size: var(--fs-xs); padding: 2px 10px 4px; }
+
+/* le journal : aujourd'hui en orange, les jours sans rien s'effacent */
+.bar.today .bar-track i { background: var(--accent); }
+.bar.today .bar-label { color: var(--ink); }
+.bar.zero .bar-value, .bar.zero .bar-label { opacity: 0.55; }
+
+/* le carnet : « Pour mieux te connaître » replié */
+section.fold { padding-bottom: var(--sp-1); }
+section.fold summary { font-size: var(--fs-l); margin: 0 0 var(--sp-2); }
+section.fold summary::before { color: var(--accent-dark); }
+
+/* les connexions : l'état dans une pastille */
+.status { display: inline-block; margin: 0 0 var(--sp-3); font-size: var(--fs-xs); line-height: 18px; color: var(--muted); }
+.status::before { content: '■ '; }
+.status.on { color: var(--good); }
+.status.connecting { color: var(--gold-ink); }
+.status.error { color: var(--danger); }
+.help { background: var(--bg); }
+
+/* la boutique : une vitrine (Gilbert sur son socle) et ce qu'il porte */
+.shop-hero .vitrine { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-4); align-items: center; }
+/* la vitrine : Gilbert à l'échelle de l'interface (pixels de 2 px) */
+.shop-hero .stage { position: relative; display: grid; place-items: center; padding: var(--sp-4); background: var(--bg); }
+.shop-hero canvas.hero { image-rendering: pixelated; }
+.shop-hero .worn { display: flex; flex-direction: column; justify-content: center; gap: var(--sp-3); }
+.shop-hero .slot small { display: block; color: var(--muted); font-size: var(--fs-xs); line-height: 18px; }
+.shop-hero .slot b { font-weight: 400; font-size: var(--fs-l); }
+.shop-hero .slot .meter { margin-left: 0; }
+
+/* l'onglet Discussion : à gauche les conversations puis Gilbert (tourné vers le fil), à droite le fil ; presque pas de cadres */
+.pane-chat { height: calc(100vh - 118px); min-height: 420px; }
+.chatbox { display: grid; grid-template-columns: 170px 1fr; gap: var(--sp-4); }
+.chatbox[hidden] { display: none; }
+
+/* la colonne : « + Nouvelle », les titres, et de la place pour Gilbert en bas */
+.chat-side { display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; }
+.chat-new { display: flex; align-items: flex-start; gap: 4px; align-self: flex-start; text-align: left; padding: 2px 6px 4px 2px; font-size: var(--fs-xs); color: var(--accent-dark); background: transparent; }
+.chat-new svg { fill: currentColor; }
+.chat-new:hover { color: var(--ink); }
+.chat-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: none; }
+.chat-list .conv { display: flex; align-items: stretch; background: transparent; box-shadow: none; transform: none; }
+.chat-list .conv:hover { background: var(--bg); box-shadow: none; }
+.chat-list .conv.on, .chat-list .conv.on:hover { background: var(--line); }
+.conv-open { flex: 1; min-width: 0; text-align: left; padding: 4px var(--sp-2); font-size: var(--fs-xs); line-height: var(--lh); color: var(--muted); background: transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv.on .conv-open { color: var(--ink); }
+.conv-del { padding: 0 2px; background: transparent; color: var(--muted); visibility: hidden; font-size: var(--fs-xs); }
+.conv-del svg { fill: currentColor; display: block; }
+.conv:hover .conv-del, .conv-del.sure { visibility: visible; }
+.conv-del:hover, .conv-del.sure { color: var(--danger); }
+.chat-gilbert { flex: none; height: 150px; }
+
+/* le fil : les messages s'empilent en bas, près de Gilbert et de la saisie */
+.chat-main, section.chat-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0; padding: 0; background: none; box-shadow: none; filter: none; }
+.chat-msgs { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: var(--sp-2) var(--sp-2) var(--sp-3) 14px; scrollbar-width: thin; }
+.chat-msgs > :first-child { margin-top: auto; }
+.chat-start { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-left: 2px; }
+.chat-start .ask { padding: 4px 4px; color: var(--ink); background: transparent; text-align: left; }
+.chat-start .ask::before { content: '› '; color: var(--accent-dark); }
+.chat-start .ask:hover { color: var(--accent-dark); }
+
+/* les bulles : même famille pour les deux, contour fin de 2 px, angles droits, une petite queue en bas ;
+   celle de Gilbert est claire et pointe vers lui (à gauche), la tienne est foncée et pointe vers toi (à droite) */
+.msg { display: flex; max-width: 100%; position: relative; }
+.msg.mine { align-self: flex-end; max-width: 82%; }
+.msg .col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.msg.mine .col { align-items: flex-end; }
+.msg .text { position: relative; white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--sp-2) var(--sp-3); line-height: var(--lh); box-shadow: 0 0 0 var(--bw) var(--ink); }
+.msg.his .text { background: var(--card); color: var(--ink); }
+.msg.mine .text { background: var(--ink); color: var(--card); }
+.msg.his .col { margin-left: 12px; }
+.msg.mine .col { margin-right: 12px; }
+.msg .text::before { content: ''; position: absolute; bottom: 8px; width: 8px; height: 16px; background-size: 100% 100%; background-repeat: no-repeat; }
+/* les queues : les mêmes marches de 2 px que la bulle de Gilbert sur le bureau (celle de Gilbert est claire, cernée de brun,
+   et ouvre le trait de la bulle ; la tienne est pleine) */
+.msg.his .text::before { left: -8px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 8' shape-rendering='crispEdges'%3E%3Cpath fill='%231f1b16' d='M3 0h1v1H3zM3 7h1v1H3zM2 1h1v1H2zM2 6h1v1H2zM1 2h1v1H1zM1 5h1v1H1zM0 3h1v2H0z'/%3E%3Cpath fill='%23fbf5e6' d='M3 1h1v6H3zM2 2h1v4H2zM1 3h1v2H1z'/%3E%3C/svg%3E"); }
+.msg.mine .text::before { right: -8px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 8' shape-rendering='crispEdges'%3E%3Cpath fill='%231f1b16' d='M0 0h1v8H0zM1 1h1v6H1zM2 2h1v4H2zM3 3h1v2H3z'/%3E%3C/svg%3E"); }
+.msg .cursor { display: inline-block; width: 8px; height: 16px; margin-left: 2px; background: var(--accent); vertical-align: -2px; animation: blink 0.7s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.msg .meta { position: absolute; left: 0; top: 100%; margin-top: 2px; display: flex; align-items: center; gap: var(--sp-2); opacity: 0; pointer-events: none; z-index: 1; }
+.msg.his .meta { left: 12px; }
+.msg.mine .meta { left: auto; right: 12px; }
+.msg:hover .meta { opacity: 1; pointer-events: auto; }
+.msg .meta small { font-size: var(--fs-xs); color: var(--muted); line-height: 18px; }
+.msg .copy { padding: 0 2px; background: transparent; color: var(--muted); }
+.msg .copy svg { fill: currentColor; display: block; }
+.msg .copy:hover, .msg .copy.done { color: var(--accent-dark); }
+.msg .sources { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.msg .src { font-size: var(--fs-xs); line-height: 18px; padding: 4px 6px 4px; background: var(--bg); color: var(--muted); }
+.dots { display: inline-flex; gap: 4px; align-items: center; height: 22px; }
+.dots i { width: 8px; height: 8px; background: var(--ink); animation: dot 0.9s steps(2) infinite; }
+.dots i:nth-child(2) { animation-delay: 0.15s; }
+.dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dot { 50% { transform: translateY(-4px); } }
+
+/* la saisie : un champ, rien d'autre (Entrée envoie) */
+.chat-compose { display: flex; background: var(--white); box-shadow: inset 0 0 0 var(--bw-strong) var(--ink); }
+.chat-compose:focus-within { box-shadow: inset 0 0 0 var(--bw-strong) var(--accent-dark); }
+.chat-input { flex: 1; resize: none; min-height: 46px; max-height: 132px; line-height: var(--lh); box-shadow: none; background: transparent; padding: 12px var(--sp-3); }
+.chat-input:focus { box-shadow: none; }
+
+/* le rail tient toujours sans défiler : onglets plus serrés, et sans leur nom si la fenêtre est basse */
+.rail { gap: 2px; padding: 8px 8px; }
+.rail .logo { margin-bottom: 4px; }
+.rail nav.tabs { gap: 2px; }
+.rail button.tab, .rail button.gear { gap: 2px; padding: 4px 2px 2px; line-height: 18px; }
+.rail button.tab span:not(.icon), .rail button.gear span:not(.icon) { line-height: 18px; }
+@media (max-height: 640px) {
+  .rail button.tab span:not(.icon), .rail button.gear span:not(.icon) { display: none; }
+  .rail button.tab, .rail button.gear { padding: 6px 2px; }
+}
+
+/* discussion : bulles alignées entre elles et sur le champ (mêmes bords, même contour) */
+.chat-msgs { padding: var(--sp-2) 0 var(--sp-3); }
+.msg.mine, .msg { max-width: 88%; }
+.msg .col { margin: 0 12px; }
+.chat-compose { margin: 0 12px; box-shadow: inset 0 0 0 var(--bw) var(--ink); }
+.chat-compose:focus-within { box-shadow: inset 0 0 0 var(--bw) var(--accent-dark); }
+.msg.his .meta { left: 12px; }
+.msg.mine .meta { right: 12px; }
+.chat-new { align-items: center; white-space: nowrap; }
+
+/* discussion : queues asymétriques, tout en bas de la bulle ; copier atteignable ; points plus petits ; pas de barre */
+.msg .text::before { bottom: -2px; width: 8px; height: 8px; }
+.msg.his .text::before { left: -8px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath fill='%231f1b16' d='M3 0h1v1H3zM2 1h1v1H2zM1 2h1v1H1zM0 3h4v1H0z'/%3E%3Cpath fill='%23fbf5e6' d='M3 1h1v2H3zM2 2h1v1H2z'/%3E%3C/svg%3E"); }
+.msg.mine .text::before { right: -8px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath fill='%231f1b16' d='M0 0h1v4H0zM1 1h1v3H1zM2 2h1v2H2zM3 3h1v1H3z'/%3E%3C/svg%3E"); }
+.msg .col { position: relative; }
+.msg .meta { top: 2px; margin-top: 0; left: auto; right: 2px; padding: 0 2px; background: var(--card); }
+.msg.his .meta, .msg.mine .meta { left: auto; right: 2px; }
+.msg.mine .meta { background: var(--ink); }
+.msg.mine .meta small { color: var(--on-dark-muted); }
+.msg .src { background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); }
+.dots { gap: 4px; height: 18px; }
+.dots i { width: 4px; height: 4px; }
+@keyframes dot { 50% { transform: translateY(-4px); } }
+.chat-msgs { scrollbar-width: none; }
+.chat-msgs::-webkit-scrollbar { display: none; }
+
+/* titres un peu plus gros (pixels de 3 px) */
+h1, h2, .pane > section > h2 { font-size: var(--fs-title); line-height: 30px; }
+h2::before { height: 14px; }
+/* carnet et guide : des fonds plus foncés, sans bordure, comme le journal */
+.pane-carnet input, .pane-carnet textarea { background: var(--bg); box-shadow: none; padding: 4px 8px; min-height: 32px; }
+.pane-carnet input:focus, .pane-carnet textarea:focus { box-shadow: inset 0 0 0 var(--bw) var(--accent-dark); }
+.pane-carnet label.field span { margin-bottom: 2px; }
+.card, .card.tried { background: var(--bg); box-shadow: none; }
+.card:hover { background: var(--line); box-shadow: none; }
+.items { grid-template-columns: repeat(3, 1fr); }
+
+/* connexions : champs plus sombres, sans bordure, comme le carnet */
+.pane-connections input, .pane-connections textarea { background: var(--bg); box-shadow: none; padding: 4px 8px; min-height: 32px; }
+.pane-connections input:focus, .pane-connections textarea:focus { box-shadow: inset 0 0 0 var(--bw) var(--accent-dark); }
+.pane-connections .help { background: var(--bg); box-shadow: none; }

@@ -8,10 +8,14 @@ import {
 import path from 'node:path';
 import { loadSettings, saveSettings } from './settings';
 import { Brain } from './brain/brain';
+import { explicitSearch, looksLikeLookup, siteOf, webContext, webQuery, webSearch, type WebResult } from './web';
+import { MODELS, isDownloaded, ramGB, recommended } from './brain/models';
 import { learn } from './brain/knowledge';
 import { describeReminder, parseReminder, REMIND } from './brain/remind';
 import { aboutMail, mailContext, mailQuery } from './mailbox';
 import { MemoryStore } from './memory';
+import { ChatStore } from './chats';
+import { MENU } from '../shared/menu';
 import { onPageWindow, openSettings, pageWindow } from './windows';
 import { Assistant } from './assistant';
 import { ScreenWatcher } from './vision/watch';
@@ -28,7 +32,7 @@ import { splitTask, todoDone, todoSplit, todoToAdd } from './todo';
 import { transcribe } from './voice';
 import { FOLDER, Tidy } from './tidy';
 import { friendship, Mood } from './mood';
-import { LOCALE, SPEAK, type BrainEvent, type BrainStatus, type Command, type Humor, type MailSettings, type Memory, type PrefsAction, type PrefsState, type Settings, type Task, type SettingsTab } from '../shared/types';
+import { LOCALE, SPEAK, type BrainChoice, type BrainEvent, type Lang, type BrainStatus, type Command, type Humor, type MailSettings, type Memory, type PrefsAction, type PrefsState, type Settings, type Task, type SettingsTab } from '../shared/types';
 
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -101,15 +105,24 @@ function update(patch: Partial<Settings>) {
   refreshPrefs();
 }
 
+/** Les trois cerveaux qu'on peut choisir, dans l'ordre léger, équilibré, puissant */
+function brainChoices(): BrainChoice[] {
+  return [...MODELS].reverse().map((m) => ({
+    id: m.id, tier: m.tier, label: m.label, size: m.size, minRamGB: m.minRamGB,
+    downloaded: isDownloaded(m), active: brain.info.id === m.id, recommended: recommended().id === m.id,
+    pulling: brain.pulling?.id === m.id ? brain.pulling.progress : null,
+  }));
+}
+
 /** Ce que l'onglet Réglages affiche */
 function prefsState(): PrefsState {
   const st = assistant?.status();
   return {
     settings, quiet: isQuiet(), vision: { supported: visionSupported(), permission: permission() },
-    brain: brain.status, mail: st?.mail.state === 'on', calendar: st?.calendar.state === 'on',
+    brain: brain.status, brains: brainChoices(), ramGB: Math.round(ramGB()), mail: st?.mail.state === 'on', calendar: st?.calendar.state === 'on',
     city: Boolean(memory.data.profile.city), focusEnds: focus?.active?.endsAt ?? 0,
     today: assistant?.today() ?? { name: '', weather: '', events: [], tasks: [], waiting: [] },
-    wallet: journal?.wallet ?? { acorns: 0, golden: 0 },
+    wallet: journal?.wallet ?? { acorns: 0 },
   };
 }
 
@@ -431,6 +444,28 @@ ipcMain.handle('music', (_e, cmd: 'status' | 'play' | 'pause' | 'next' | 'previo
 });
 // ce que seul Gilbert voit : on l'a fait descendre en tirant sa queue
 ipcMain.on('tried', (_e, key: string) => { if (key === 'hide') markTried('hide'); });
+/** Où est la fenêtre de Gilbert, et quel onglet y est affiché : il s'assoit sur son bord du haut, ou sur la branche pour discuter */
+let settingsBounds: Electron.Rectangle | null = null;
+let settingsTab: SettingsTab = 'home';
+function perchOnSettings() {
+  const b = settingsBounds, area = screen.getPrimaryDisplay().workArea;
+  if (!b) return send({ type: 'perch', at: null });
+  // le panneau est à 6 px du bord de la fenêtre (sa bordure pixel déborde de 3 px)
+  // la Discussion : il se tient à gauche du fil, au centre de sa colonne
+  if (settingsTab === 'chat') {
+    const x = b.x - area.x + 6 + MENU.rail + 20;
+    send({ type: 'perch', at: { x, y: b.y - area.y + b.height - 6 - MENU.floor, width: MENU.chatColumn, spot: x + MENU.chatColumn / 2 + 14 } });
+  }
+  else send({ type: 'perch', at: { x: b.x - area.x + 6, y: b.y - area.y + 4, width: b.width - 12 } });
+}
+ipcMain.on('prefs:shown', (_e, tab: SettingsTab) => {
+  // il ne bouge que de l'onglet Discussion (où il s'installe en bas à gauche) vers les autres, et inversement
+  const was = settingsTab === 'chat';
+  settingsTab = tab;
+  if ((tab === 'chat') !== was) perchOnSettings();
+});
+ipcMain.handle('acorns:pending', () => journal?.pending ?? { acorns: 0 });
+ipcMain.on('acorns:collect', (_e, acorns: unknown) => journal?.collect(Number(acorns) || 0));
 ipcMain.on('mouse:ignore', (_e, ignore: boolean) => win?.setIgnoreMouseEvents(ignore, { forward: true }));
 ipcMain.on('menu:show', () => win && buildMenu().popup({ window: win }));
 ipcMain.on('settings:position', (_e, x: number) => {
@@ -451,6 +486,12 @@ ipcMain.on('window:focus', (_e, on: boolean) => {
 });
 
 ipcMain.handle('brain:status', () => brain.status);
+ipcMain.handle('brain:models', () => brainChoices());
+ipcMain.on('brain:use', (_e, id: string) => {
+  if (!MODELS.some((m) => m.id === id)) return;
+  update({ brainModel: id });
+  brain.use(id);
+});
 
 ipcMain.handle('memory:get', () => memory.data);
 ipcMain.on('intro:done', (_e, answers: Partial<Memory['profile']>) => memory.finishOnboarding(answers));
@@ -476,6 +517,10 @@ ipcMain.on('prefs:action', (_e, a: PrefsAction, arg?: string) => {
   if (a === 'tidyNow') checkDownloads(true);
   if (a === 'openData') shell.openPath(app.getPath('userData'));
   if (a === 'downloadBrain') brain.download();
+  if (a === 'useBrain' && arg && MODELS.some((m) => m.id === arg)) {
+    update({ brainModel: arg });
+    brain.use(arg);
+  }
   if (a === 'focusStop') focus.stop();
   if (a === 'brief') assistant.runBrief(true);
   if (a === 'focusStart') focus.start(Math.min(Math.max(Math.round(Number(arg) || 25), 5), 120));
@@ -520,7 +565,7 @@ ipcMain.on('prefs:action', (_e, a: PrefsAction, arg?: string) => {
   // les 10 glands d'un essai du guide, ramassés une seule fois
   if (a === 'collect' && arg && settings.tried.includes(arg) && !settings.collected.includes(arg)) {
     update({ collected: [...settings.collected, arg] });
-    journal.addAcorns(10, false);
+    journal.addAcorns(10);
   }
   if (a === 'evening') {
     assistant.evening().then((said) => said ? markTried('evening') : assistant.tell(say3(
@@ -542,8 +587,12 @@ ipcMain.on('carnet:save', (_e, m: Memory) => memory.replace(m));
 ipcMain.on('carnet:forget', () => memory.forgetAll());
 ipcMain.on('brain:download', () => brain.download());
 ipcMain.on('brain:cancel', (_e, id: number) => brain.cancel(id));
-ipcMain.on('brain:ask', async (_e, id: number, text: string) => {
-  const emit = (ev: BrainEvent) => win?.webContents.send('brain:event', ev);
+ipcMain.on('brain:ask', (_e, id: number, text: string) => {
+  answer(id, text, (ev) => win?.webContents.send('brain:event', ev));
+});
+
+/** Répond à ce que tu écris, dans la bulle ou dans une discussion longue : `emit` reçoit les morceaux puis la réponse */
+async function answer(id: number, text: string, emit: (ev: BrainEvent) => void, opts: { history?: { role: 'user' | 'gilbert'; text: string }[]; long?: boolean } = {}) {
   try {
     markTried('chat');
     if (settings.journal) journal.count('chats');
@@ -603,15 +652,55 @@ ipcMain.on('brain:ask', async (_e, id: number, text: string) => {
       if (found.length) markTried('mail');
       if (found.length) prompt = `${mailContext(found, settings.lang)}\n\n${settings.lang === 'fr' ? 'Sa question' : 'Their question'} : ${text}`;
     }
-    const answer = await brain.ask(id, prompt, (chunk) => emit({ id, kind: 'chunk', text: chunk }));
-    emit({ id, kind: 'done', text: answer });
+    // internet : sur demande (« cherche… »), ou quand la question sort de ce qu'il sait (actualité, faits récents)
+    let sources: WebResult[] = [];
+    if (settings.webSearch && prompt === text) {
+      const asked = explicitSearch(text);
+      const query = asked ?? (looksLikeLookup(text) ? await webQuery(brain, text) : null);
+      if (query) {
+        sources = await webSearch(query, settings.lang, 5);
+        prompt = sources.length ? webContext(sources, text, settings.lang) : `${text}\n\n${say3('(Je n’ai rien trouvé sur internet : réponds avec ce que tu sais, et dis-le franchement si tu n’es pas sûr.)', '(Nothing found online: answer from what you know, and say so plainly if you are unsure.)', '(Không tìm thấy gì trên mạng: hãy trả lời theo hiểu biết của cậu và nói thật nếu không chắc.)')}`;
+      }
+    }
+    const reply = await brain.ask(id, prompt, (chunk) => emit({ id, kind: 'chunk', text: chunk }), opts);
+    // les sites consultés, cités sous la réponse
+    const cited = [...new Set(sources.slice(0, 3).map((r) => siteOf(r.url)))];
+    emit({ id, kind: 'done', text: cited.length ? `${reply}\n${say3('Sources', 'Sources', 'Nguồn')} : ${cited.join(', ')}` : reply });
     // en tâche de fond : y a-t-il quelque chose à retenir sur toi dans cet échange ?
-    learn(brain, memory, text, answer, settings.lang)
+    learn(brain, memory, text, reply, settings.lang)
       .then((facts) => facts.length && send({ type: 'learned', facts }))
       .catch(() => {});
   } catch (err) {
     emit({ id, kind: 'error', text: (err as Error).message });
   }
+}
+
+// ---------- l'onglet Discussion ----------
+
+let chats: ChatStore;
+/** Les questions en cours dans l'onglet Discussion : discussion → numéro de la question */
+const chatAsks = new Map<string, number>();
+let chatAskId = 1_000_000;
+ipcMain.handle('chat:list', () => chats.list());
+ipcMain.handle('chat:get', (_e, id: string) => chats.get(id));
+ipcMain.handle('chat:create', () => chats.create());
+ipcMain.on('chat:remove', (_e, id: string) => chats.remove(id));
+ipcMain.on('chat:cancel', (_e, id: string) => { const n = chatAsks.get(id); if (n) brain.cancel(n); });
+ipcMain.on('chat:send', async (_e, chatId: string, text: string) => {
+  const thread = chats.get(chatId);
+  const q = String(text ?? '').trim().slice(0, 4000);
+  if (!thread || !q) return;
+  const to = (kind: 'chunk' | 'done' | 'error', t: string) => pageWindow('settings')?.webContents.send('chat:event', { chat: chatId, kind, text: t });
+  const history = thread.messages.slice(-14).map((m) => ({ role: m.role, text: m.text }));
+  chats.append(chatId, { role: 'user', text: q, at: Date.now() });
+  if (brain.status.state !== 'ready') return to('error', say3('Mon cerveau n’est pas prêt : réessaie dans un instant.', 'My brain is not ready: try again in a moment.', 'Bộ não của tớ chưa sẵn sàng: thử lại sau nhé.'));
+  const id = ++chatAskId;
+  chatAsks.set(chatId, id);
+  await answer(id, q, (ev) => {
+    if (ev.kind === 'done') chats.append(chatId, { role: 'gilbert', text: ev.text, at: Date.now() });
+    to(ev.kind, ev.text);
+  }, { history, long: true });
+  chatAsks.delete(chatId);
 });
 
 // ---------- démarrage ----------
@@ -645,12 +734,14 @@ if (!app.requestSingleInstanceLock()) {
     memory = new MemoryStore();
     mood = new Mood();
     journal = new Journal();
+    chats = new ChatStore();
+    journal.on('rain', (acorns: number) => send({ type: 'rain', acorns }));
     journal.on('change', (d) => {
       pageWindow('settings')?.webContents.send('journal:change', d);
       // les glands gagnés ou dépensés : la boutique suit
       refreshPrefs();
     });
-    brain = new Brain({ lang: settings.lang, humor: settings.humor }, memory.data);
+    brain = new Brain({ lang: settings.lang, humor: settings.humor }, memory.data, settings.brainModel);
     memory.on('change', (m: Memory) => {
       brain.setMemory(m);
       send({ type: 'memory', memory: m });
@@ -681,6 +772,9 @@ if (!app.requestSingleInstanceLock()) {
     });
     assistant.tasks.on('change', refreshPrefs);
     assistant.calendar.on('events', refreshPrefs);
+    // un autre cerveau se télécharge en arrière-plan : la barre avance, sans reconstruire le menu
+    let pullTimer: NodeJS.Timeout | null = null;
+    brain.on('pull', () => { pullTimer ??= setTimeout(() => { pullTimer = null; refreshPrefs(); }, 800); });
     brain.on('status', (status: BrainStatus) => {
       send({ type: 'brain', status });
       if (status.state !== 'downloading') refreshPrefs();
@@ -727,10 +821,11 @@ if (!app.requestSingleInstanceLock()) {
     // sa fenêtre s'ouvre : il saute s'asseoir sur son bord du haut (le panneau est à 6 px du bord
     // de la fenêtre, et sa bordure pixel déborde de 3 px)
     onPageWindow('settings', (b) => {
-      const area = screen.getPrimaryDisplay().workArea;
       // tant que sa fenêtre est ouverte, Gilbert (et ses bulles) passent au-dessus d'elle
       win?.setAlwaysOnTop(true, b ? 'pop-up-menu' : 'floating');
-      send({ type: 'perch', at: b ? { x: b.x - area.x + 6, y: b.y - area.y + 3, width: b.width - 12 } : null });
+      settingsBounds = b;
+      if (!b) settingsTab = 'home';
+      perchOnSettings();
     });
     brain.start();
     assistant.mail.primaryOnly = settings.mailPrimaryOnly;

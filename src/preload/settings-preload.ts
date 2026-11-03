@@ -1,6 +1,6 @@
 // Pont de la fenêtre des réglages : réglages, carnet et connexions (ses trois onglets).
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CarnetApi, ConnectionsApi, ConnStatus, JournalData, Memory, PrefsApi, PrefsState, SettingsTab } from '../shared/types';
+import type { CarnetApi, ChatApi, ConnectionsApi, ConnStatus, JournalData, Memory, PrefsApi, PrefsState, SettingsTab } from '../shared/types';
 
 const prefs: PrefsApi = {
   get: () => ipcRenderer.invoke('prefs:get'),
@@ -8,8 +8,19 @@ const prefs: PrefsApi = {
   action: (a, arg) => ipcRenderer.send('prefs:action', a, arg),
   onChange: (cb) => { ipcRenderer.on('prefs:change', (_e, s: PrefsState) => cb(s)); },
   onTab: (cb) => { ipcRenderer.on('prefs:tab', (_e, t: SettingsTab) => cb(t)); },
+  shown: (tab) => ipcRenderer.send('prefs:shown', tab),
   journal: () => ipcRenderer.invoke('journal:get'),
   onJournal: (cb) => { ipcRenderer.on('journal:change', (_e, d: JournalData) => cb(d)); },
+};
+
+const chat: ChatApi = {
+  list: () => ipcRenderer.invoke('chat:list'),
+  get: (id) => ipcRenderer.invoke('chat:get', id),
+  create: () => ipcRenderer.invoke('chat:create'),
+  remove: (id) => ipcRenderer.send('chat:remove', id),
+  send: (id, text) => ipcRenderer.send('chat:send', id, text),
+  cancel: (id) => ipcRenderer.send('chat:cancel', id),
+  onEvent: (cb) => { ipcRenderer.on('chat:event', (_e, ev) => cb(ev)); },
 };
 
 const carnet: CarnetApi = {
@@ -31,4 +42,5 @@ const connections: ConnectionsApi = {
 
 contextBridge.exposeInMainWorld('prefs', prefs);
 contextBridge.exposeInMainWorld('carnet', carnet);
+contextBridge.exposeInMainWorld('chat', chat);
 contextBridge.exposeInMainWorld('connections', connections);

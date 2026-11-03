@@ -67,6 +67,18 @@ export const sfx = {
     if (!enabled) return;
     tone(520, 0, 0.07, { type: 'sine', gain: 0.1, glide: 1.8 });
   },
+  /** Un gland qui touche le sol : un petit tic de bois */
+  acornLand() {
+    if (!enabled) return;
+    tone(760, 0, 0.05, { type: 'triangle', gain: 0.035, glide: 0.7 });
+  },
+  /** Un gland ramassé : un tintement qui monte quand on en ramasse plusieurs d'affilée (`combo`) */
+  pickup(combo: number) {
+    if (!enabled) return;
+    const f = 660 * 2 ** ([0, 2, 4, 5, 7, 9, 11, 12, 14, 16][Math.min(combo, 9)] / 12);
+    tone(f, 0, 0.09, { type: 'square', gain: 0.03, glide: 1.02 });
+    tone(f * 1.5, 0.05, 0.13, { type: 'sine', gain: 0.06, glide: 1.01 });
+  },
   /** La benne qui s'ébranle : un grondement métallique, puis des cliquetis */
   rattle() {
     if (!enabled) return;

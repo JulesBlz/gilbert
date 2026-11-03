@@ -35,7 +35,8 @@ export class Journal extends EventEmitter {
     try {
       saved = JSON.parse(readFileSync(file(), 'utf8'));
     } catch { /* premier lancement */ }
-    this.data = { days: {}, weeks: {}, acorns: { total: 0, golden: 0 }, firstSeen: Date.now(), ...saved };
+    this.data = { days: {}, weeks: {}, acorns: { total: 0 }, firstSeen: Date.now(), ...saved };
+    this.dropGolden();
     // les trésors d'une ancienne version ont été remplacés par les glands
     delete (this.data as { treasures?: unknown }).treasures;
     if (!saved.firstSeen) this.save();
@@ -119,29 +120,55 @@ export class Journal extends EventEmitter {
     return n;
   }
 
-  /** Glands gagnés (un par minute travaillée), et peut-être un gland doré */
-  addAcorns(n: number, golden: boolean) {
-    this.data.acorns.total += n;
-    if (golden) this.data.acorns.golden++;
+  /** Glands gagnés (un par minute travaillée) */
+  addAcorns(n: number) {
+    // ils tombent au sol : ils ne rejoignent le solde que quand on les ramasse
+    const p = (this.data.acorns.pending ??= { acorns: 0 });
+    p.acorns += n;
     const day = this.day();
     day.acorns = (day.acorns ?? 0) + n;
+    this.save(true);
+    this.emit('rain', n);
+  }
+
+  /** Les glands encore au sol (pas ramassés) */
+  get pending() {
+    return { ...(this.data.acorns.pending ?? { acorns: 0 }) };
+  }
+
+  /** Des glands ramassés : ils passent du sol au solde */
+  collect(acorns: number) {
+    const p = (this.data.acorns.pending ??= { acorns: 0 });
+    const a = Math.max(0, Math.min(Math.floor(acorns), p.acorns));
+    if (!a) return;
+    p.acorns -= a;
+    this.data.acorns.total += a;
     this.save(true);
   }
 
   /** Ce qu'il reste à dépenser (gagné moins dépensé) */
   get wallet() {
-    const a = this.data.acorns, spent = a.spent ?? { acorns: 0, golden: 0 };
-    return { acorns: a.total - spent.acorns, golden: a.golden - spent.golden };
+    const a = this.data.acorns;
+    return { acorns: a.total - (a.spent?.acorns ?? 0) };
   }
 
   /** Paie à la boutique ; false si ça ne suffit pas */
-  spend(price: { acorns: number; golden: number }) {
-    const w = this.wallet;
-    if (w.acorns < price.acorns || w.golden < price.golden) return false;
-    const spent = this.data.acorns.spent ?? { acorns: 0, golden: 0 };
-    this.data.acorns.spent = { acorns: spent.acorns + price.acorns, golden: spent.golden + price.golden };
+  spend(price: { acorns: number }) {
+    if (this.wallet.acorns < price.acorns) return false;
+    this.data.acorns.spent = { acorns: (this.data.acorns.spent?.acorns ?? 0) + price.acorns };
     this.save(true);
     return true;
+  }
+
+  /** Les glands dorés d'une ancienne version : ceux qui restaient valent 100 glands chacun */
+  private dropGolden() {
+    const a = this.data.acorns as { total: number; golden?: number; spent?: { acorns: number; golden?: number }; pending?: { acorns: number; golden?: number } };
+    const left = (a.golden ?? 0) - (a.spent?.golden ?? 0) + (a.pending?.golden ?? 0);
+    if (a.golden === undefined && a.spent?.golden === undefined && a.pending?.golden === undefined) return;
+    if (left > 0) a.total += left * 100;
+    delete a.golden;
+    if (a.spent) delete a.spent.golden;
+    if (a.pending) delete a.pending.golden;
   }
 
   setNote(dayKey: string, note: string) {

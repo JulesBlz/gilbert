@@ -18,7 +18,7 @@ const T = {
     firstWeek: 'première semaine',
     perDay: 'Par jour travaillé', best: 'Meilleur jour', streak: 'Série', days: (n: number) => `${n} jour${n > 1 ? 's' : ''}`,
     streakHint: 'd’affilée avec une session', completion: 'Sessions menées au bout',
-    together: 'Ensemble depuis', focusEver: 'Concentration en tout', doneEver: 'Choses faites', golden: (n: number) => `dont ${n} doré${n > 1 ? 's' : ''}`,
+    together: 'Ensemble depuis', focusEver: 'Concentration en tout', doneEver: 'Choses faites',
     nothing: "Rien pour l'instant. Lance une session (« Gilbert, 25 minutes ») et je note tout.",
     off: 'Le carnet de bord est désactivé (dans les réglages, la roue crantée).', note: 'La note de Gilbert',
   },
@@ -33,7 +33,7 @@ const T = {
     firstWeek: 'first week',
     perDay: 'Per working day', best: 'Best day', streak: 'Streak', days: (n: number) => `${n} day${n > 1 ? 's' : ''}`,
     streakHint: 'in a row with a session', completion: 'Sessions completed',
-    together: 'Together for', focusEver: 'Total focus', doneEver: 'Things done', golden: (n: number) => `${n} golden`,
+    together: 'Together for', focusEver: 'Total focus', doneEver: 'Things done',
     nothing: 'Nothing yet. Start a session ("Gilbert, 25 minutes") and I’ll log everything.',
     off: 'The logbook is turned off (in the settings, the gear).', note: "Gilbert's note",
   },
@@ -48,7 +48,7 @@ const T = {
     firstWeek: 'tuần đầu tiên',
     perDay: 'Mỗi ngày làm việc', best: 'Ngày tốt nhất', streak: 'Chuỗi', days: (n: number) => `${n} ngày`,
     streakHint: 'liên tiếp có buổi làm việc', completion: 'Buổi làm trọn vẹn',
-    together: 'Bên nhau được', focusEver: 'Tổng thời gian tập trung', doneEver: 'Việc đã xong', golden: (n: number) => `${n} quả vàng`,
+    together: 'Bên nhau được', focusEver: 'Tổng thời gian tập trung', doneEver: 'Việc đã xong',
     nothing: 'Chưa có gì. Bắt đầu một buổi (« Gilbert, 25 phút ») và tớ ghi lại hết.',
     off: 'Nhật ký đang tắt (trong cài đặt, bánh răng).', note: 'Ghi chú của Gilbert',
   },
@@ -66,10 +66,10 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const screenTime = (d?: JournalDay) => (d ? sum(Object.values(d.apps)) : 0);
 
 /** Une barre pixel : `value` sur `max` */
-function bar(value: number, max: number, label: string, right: string) {
+function bar(value: number, max: number, label: string, right: string, cls = '') {
   const fill = h('i');
   fill.style.width = `${max ? Math.round((value / max) * 100) : 0}%`;
-  return h('div', { className: 'bar' }, h('span', { className: 'bar-label' }, label), h('span', { className: 'bar-track' }, fill), h('span', { className: 'bar-value' }, right));
+  return h('div', { className: `bar ${cls}`.trim() }, h('span', { className: 'bar-label' }, label), h('span', { className: 'bar-track' }, fill), h('span', { className: 'bar-value' }, right));
 }
 
 /** Une tuile : un chiffre, ce qu'il compte, et une précision */
@@ -115,8 +115,6 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
       tile(t.screen, hm(screen), screen && f.minutes ? t.share(Math.min(100, Math.round((f.minutes / screen) * 100))) : ''),
       tile(t.acorns, `+${today.acorns ?? 0}`, t.total(data.acorns.total)),
       tile(t.done, String(today.done.length), today.done.slice(0, 2).join(', ')),
-      tile(t.mails, String(today.mails)),
-      tile(t.chats, String(today.chats)),
     ));
     const apps = topApps([today], 6);
     if (apps.length) todaySec.append(h('div', { className: 'label' }, t.apps), ...appBars(apps, screen));
@@ -136,7 +134,9 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
   const lastWeek = Array.from({ length: 7 }, (_, i) => dayAt(i - 7));
   const mins = week.map((d) => data.days[iso(d)]?.focus.minutes ?? 0);
   const max = Math.max(...mins, 25);
-  week.forEach((d, i) => weekSec.append(bar(mins[i], max, d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' }), hm(mins[i]))));
+  // aujourd'hui en orange, les jours sans rien s'effacent
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  week.forEach((d, i) => weekSec.append(bar(mins[i], max, d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' }), hm(mins[i]), i === todayIdx ? 'today' : mins[i] ? '' : 'zero')));
   const total = sum(mins);
   const before = sum(lastWeek.map((d) => data.days[iso(d)]?.focus.minutes ?? 0));
   const worked = mins.filter(Boolean).length;
@@ -146,11 +146,9 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
   const s = streak(data);
   weekSec.append(h('div', { className: 'tiles' },
     tile(t.focus, hm(total), before ? t.vsLast(Math.round(((total - before) / before) * 100)) : t.firstWeek),
-    tile(t.perDay, worked ? hm(Math.round(total / worked)) : '—', t.days(worked)),
     tile(t.best, total ? week[bestI].toLocaleDateString(locale, { weekday: 'long' }) : '—', total ? hm(mins[bestI]) : ''),
     tile(t.streak, t.days(s), t.streakHint),
     tile(t.completion, finished + stopped ? `${Math.round((finished / (finished + stopped)) * 100)} %` : '—', finished + stopped ? t.sessions(finished, stopped) : ''),
-    tile(t.screen, hm(sum(week.map((d) => screenTime(data.days[iso(d)])))), ''),
   ));
   const weekApps = topApps(week.map((d) => data.days[iso(d)]), 5);
   if (weekApps.length) weekSec.append(h('div', { className: 'label' }, t.weekApps), ...appBars(weekApps, sum(week.map((d) => screenTime(data.days[iso(d)])))));
@@ -164,7 +162,7 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
   sections.push(h('section', {}, h('h2', {}, t.ever), h('div', { className: 'tiles' },
     tile(t.together, t.days(since)),
     tile(t.focusEver, hm(sum(all.map((d) => d.focus.minutes)))),
-    tile(t.acorns, String(data.acorns.total), data.acorns.golden ? t.golden(data.acorns.golden) : ''),
+    tile(t.acorns, String(data.acorns.total)),
     tile(t.doneEver, String(sum(all.map((d) => d.done.length)))),
   )));
 

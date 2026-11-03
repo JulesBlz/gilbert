@@ -8,6 +8,8 @@ import path from 'node:path';
 
 export interface ModelInfo {
   id: string;
+  /** Léger, équilibré ou puissant : le palier proposé à l'installation et dans les réglages */
+  tier: 'light' | 'balanced' | 'powerful';
   label: string;
   file: string;
   url: string;
@@ -22,26 +24,30 @@ const HF = 'https://huggingface.co';
 // Gemma 4 (licence Apache 2.0), quantifié en Q4_K_M par Unsloth. Tous savent aussi lire des images.
 export const MODELS: ModelInfo[] = [
   {
-    id: 'gemma-4-12b', label: 'Gemma 4 12B', minRamGB: 20, size: 7.12e9,
+    id: 'gemma-4-12b', tier: 'powerful', label: 'Gemma 4 12B', minRamGB: 20, size: 7.12e9,
     file: 'gemma-4-12b-it-Q4_K_M.gguf',
     url: `${HF}/unsloth/gemma-4-12b-it-GGUF/resolve/main/gemma-4-12b-it-Q4_K_M.gguf`,
   },
   {
-    id: 'gemma-4-e4b', label: 'Gemma 4 E4B', minRamGB: 12, size: 4.98e9,
+    id: 'gemma-4-e4b', tier: 'balanced', label: 'Gemma 4 E4B', minRamGB: 12, size: 4.98e9,
     file: 'gemma-4-E4B-it-Q4_K_M.gguf',
     url: `${HF}/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf`,
   },
   {
-    id: 'gemma-4-e2b', label: 'Gemma 4 E2B', minRamGB: 0, size: 3.11e9,
+    id: 'gemma-4-e2b', tier: 'light', label: 'Gemma 4 E2B', minRamGB: 0, size: 3.11e9,
     file: 'gemma-4-E2B-it-Q4_K_M.gguf',
     url: `${HF}/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf`,
   },
 ];
 
+export const ramGB = () => os.totalmem() / 2 ** 30;
+
 /** Le plus gros modèle que la machine peut porter confortablement */
-export function pickModel(): ModelInfo {
-  const ramGB = os.totalmem() / 2 ** 30;
-  return MODELS.find((m) => ramGB >= m.minRamGB) ?? MODELS[MODELS.length - 1];
+export const recommended = (): ModelInfo => MODELS.find((m) => ramGB() >= m.minRamGB) ?? MODELS[MODELS.length - 1];
+
+/** Le modèle choisi (`id`), sinon celui qui convient à la machine */
+export function pickModel(id = ''): ModelInfo {
+  return MODELS.find((m) => m.id === id) ?? recommended();
 }
 
 export const modelsDir = () => path.join(app.getPath('userData'), 'models');

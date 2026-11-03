@@ -3,31 +3,32 @@
 
 import sheetUrl from '../../assets/gilbert.png';
 import atlas from '../../assets/gilbert.json';
-import { ACORN, GOLDEN_ACORN, drawGrid } from '../shared/pixels';
+import { ACORN, drawGrid } from '../shared/pixels';
+import { tiny } from './icons';
 import { SHOP, paintSkin, type Item, type Skin } from '../shared/skins';
 import type { Lang, PrefsState } from '../shared/types';
 
 const T = {
   fr: {
     title: 'La boutique', hint: 'Passe la souris sur un objet pour le lui faire essayer.',
-    wallet: (n: number) => `${n} gland${n > 1 ? 's' : ''}`, golden: (n: number) => `${n} doré${n > 1 ? 's' : ''}`,
+    wallet: (n: number) => `${n} gland${n > 1 ? 's' : ''}`,
     furs: 'Pelages', accessories: 'Accessoires',
-    wearing: 'Porté', wear: 'Porter', remove: 'Retirer', buy: 'Acheter', sure: 'Sûr ?', missing: (n: number, golden: boolean) => `Il manque ${n}${golden ? ' doré' + (n > 1 ? 's' : '') : ''}`,
-    free: 'Offert',
+    wearing: 'Porté', wear: 'Porter', remove: 'Retirer', buy: 'Acheter', sure: 'Sûr ?', missing: (n: number) => `Il manque ${n}`,
+    free: 'Offert', slotFur: 'Pelage', slotAcc: 'Accessoire', collection: 'Collection', none: '—',
   },
   en: {
     title: 'The shop', hint: 'Hover over an item to have him try it on.',
-    wallet: (n: number) => `${n} acorn${n > 1 ? 's' : ''}`, golden: (n: number) => `${n} golden`,
+    wallet: (n: number) => `${n} acorn${n > 1 ? 's' : ''}`,
     furs: 'Fur', accessories: 'Accessories',
-    wearing: 'Wearing', wear: 'Wear', remove: 'Take off', buy: 'Buy', sure: 'Sure?', missing: (n: number, golden: boolean) => `${n}${golden ? ' golden' : ''} short`,
-    free: 'Free',
+    wearing: 'Wearing', wear: 'Wear', remove: 'Take off', buy: 'Buy', sure: 'Sure?', missing: (n: number) => `${n} short`,
+    free: 'Free', slotFur: 'Fur', slotAcc: 'Accessory', collection: 'Collection', none: '—',
   },
   vi: {
     title: 'Cửa hàng', hint: 'Rê chuột lên một món để tớ mặc thử.',
-    wallet: (n: number) => `${n} quả sồi`, golden: (n: number) => `${n} quả vàng`,
+    wallet: (n: number) => `${n} quả sồi`,
     furs: 'Bộ lông', accessories: 'Phụ kiện',
-    wearing: 'Đang mặc', wear: 'Mặc', remove: 'Cởi ra', buy: 'Mua', sure: 'Chắc chưa?', missing: (n: number, golden: boolean) => `Thiếu ${n}${golden ? ' quả vàng' : ''}`,
-    free: 'Miễn phí',
+    wearing: 'Đang mặc', wear: 'Mặc', remove: 'Cởi ra', buy: 'Mua', sure: 'Chắc chưa?', missing: (n: number) => `Thiếu ${n}`,
+    free: 'Miễn phí', slotFur: 'Bộ lông', slotAcc: 'Phụ kiện', collection: 'Bộ sưu tập', none: '—',
   },
 };
 
@@ -85,15 +86,14 @@ function portrait(canvas: HTMLCanvasElement, skin: Skin, scale: number, crop = C
 /** La tête seule (pour les accessoires) */
 const HEAD = { x: 14, y: 22, w: 18, h: 15 };
 
-function acorn(golden: boolean) {
+function acorn() {
   const c = h<HTMLCanvasElement>('canvas', { width: 20, height: 20, className: 'acorn-small' });
-  drawGrid(c.getContext('2d')!, golden ? GOLDEN_ACORN : ACORN, 0, 0, 2);
+  drawGrid(c.getContext('2d')!, ACORN, 0, 0, 2);
   return c;
 }
 
-const price = (item: Item, t: typeof T.fr) => (item.price.golden
-  ? h('span', { className: 'price' }, acorn(true), String(item.price.golden))
-  : item.price.acorns ? h('span', { className: 'price' }, acorn(false), String(item.price.acorns)) : h('span', { className: 'price' }, t.free));
+const price = (item: Item, t: typeof T.fr) => (item.price.acorns
+  ? h('span', { className: 'price' }, acorn(), String(item.price.acorns)) : h('span', { className: 'price' }, t.free));
 
 // ---------- l'onglet ----------
 
@@ -105,33 +105,34 @@ export function renderShop(el: HTMLElement, state: PrefsState, lang: Lang, act: 
   const s = state.settings;
   const w = state.wallet;
   const hero = h<HTMLCanvasElement>('canvas', { className: 'hero' });
-  const tryOn = (skin: Skin) => portrait(hero, skin, 6);
+  const tryOn = (skin: Skin) => portrait(hero, skin, 4);
 
   const card = (item: Item) => {
     const owned = s.owned.includes(item.id);
     const worn = item.kind === 'fur' ? s.skin.fur === item.id : s.skin.accessory === item.id;
     const trial: Skin = item.kind === 'fur' ? { ...s.skin, fur: item.id } : { ...s.skin, accessory: item.id };
     const thumb = h<HTMLCanvasElement>('canvas', { className: 'thumb' });
-    if (item.kind === 'fur') portrait(thumb, { fur: item.id, accessory: '' }, 3);
+    if (item.kind === 'fur') portrait(thumb, { fur: item.id, accessory: '' }, 4);
     else portrait(thumb, { fur: s.skin.fur, accessory: item.id }, 4, HEAD);
 
-    const short = item.price.golden ? item.price.golden - w.golden : item.price.acorns - w.acorns;
+    const short = item.price.acorns - w.acorns;
     const b = h<HTMLButtonElement>('button', {});
     if (worn) {
-      b.textContent = item.kind === 'accessory' ? t.remove : t.wearing;
+      b.textContent = t.remove;
       b.className = 'ghost';
-      b.disabled = item.kind === 'fur';
       b.addEventListener('click', () => act('wear', item.id));
     } else if (owned) {
       b.textContent = t.wear;
       b.addEventListener('click', () => act('wear', item.id));
     } else if (short > 0) {
-      b.textContent = t.missing(short, item.price.golden > 0);
-      b.className = 'ghost';
+      // trop cher : un cadenas et ce qu'il manque ; le détail au survol
+      b.append(tiny('lock'), ` −${short}`);
+      b.title = t.missing(short);
+      b.className = 'ghost locked';
       b.disabled = true;
     } else {
       b.textContent = confirming === item.id ? t.sure : t.buy;
-      b.className = confirming === item.id ? 'confirm' : '';
+      b.className = confirming === item.id ? 'danger' : 'primary';
       b.addEventListener('click', () => {
         if (confirming === item.id) {
           confirming = '';
@@ -140,29 +141,38 @@ export function renderShop(el: HTMLElement, state: PrefsState, lang: Lang, act: 
         }
         confirming = item.id;
         b.textContent = t.sure;
-        b.className = 'confirm';
+        b.className = 'danger';
         setTimeout(() => {
           if (confirming !== item.id) return;
           confirming = '';
           b.textContent = t.buy;
-          b.className = '';
+          b.className = 'primary';
         }, 3000);
       });
     }
     const c = h('div', { className: `item${worn ? ' worn' : ''}${owned ? ' owned' : ''}` }, thumb, h('b', {}, item.name[lang]),
-      owned ? h('span', { className: 'price' }, worn ? t.wearing : '✓') : price(item, t), b);
+      owned ? h('span', { className: 'price' }, worn ? '' : '✓') : price(item, t),
+      worn && item.kind === 'fur' ? h('span', { className: 'tag on' }, t.wearing) : b);
     c.addEventListener('mouseenter', () => tryOn(trial));
     c.addEventListener('mouseleave', () => tryOn(s.skin));
     return c;
   };
 
+  const all = [...SHOP.furs, ...SHOP.accessories];
+  const have = all.filter((i) => s.owned.includes(i.id)).length;
+  const collectionBar = h('i');
+  collectionBar.style.width = `${Math.round((have / all.length) * 100)}%`;
+
   const draw = () => {
     tryOn(s.skin);
     el.replaceChildren(
-      h('section', { className: 'shop-hero' }, hero, h('div', {},
-        h('h2', {}, t.title),
-        h('p', { className: 'wallet' }, acorn(false), t.wallet(w.acorns), ...(w.golden ? [acorn(true), t.golden(w.golden)] : [])),
-        h('p', { className: 'empty' }, t.hint))),
+      // la vitrine : Gilbert tel qu'il est (ou tel qu'on l'essaie), ce qu'il porte, et la collection
+      h('section', { className: 'shop-hero' },
+        h('div', { className: 'vitrine' }, h('div', { className: 'stage' }, hero),
+          h('div', { className: 'worn' },
+            h('div', { className: 'slot' }, h('small', {}, t.slotFur), h('b', {}, SHOP.furs.find((f) => f.id === s.skin.fur)?.name[lang] ?? t.none)),
+            h('div', { className: 'slot' }, h('small', {}, t.slotAcc), h('b', {}, SHOP.accessories.find((a) => a.id === s.skin.accessory)?.name[lang] ?? t.none)),
+            h('div', { className: 'slot' }, h('small', {}, t.collection), h('span', { className: 'meter' }, h('span', { className: 'meter-track' }, collectionBar), h('small', {}, `${have}/${all.length}`)))))),
       h('section', {}, h('h2', {}, t.furs), h('div', { className: 'items' }, ...SHOP.furs.map(card))),
       h('section', {}, h('h2', {}, t.accessories), h('div', { className: 'items' }, ...SHOP.accessories.map(card))),
     );

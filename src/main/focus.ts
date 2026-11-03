@@ -1,9 +1,8 @@
 // Les sessions de travail : « Gilbert, 25 minutes ». Il s'installe derrière son petit ordinateur et
 // bosse avec toi ; rien ne l'en distrait (ni clic, ni vannes, ni notifications sauf l'urgent). Un
-// gland par minute travaillée, parfois un gland doré au bout ; puis une pause, et « on remet ça ? ».
+// gland par minute travaillée ; puis une pause, et « on remet ça ? ».
 
 import type { Journal } from './journal';
-import { goldenAcorn } from '../shared/pixels';
 import type { Command, Lang } from '../shared/types';
 
 /**
@@ -46,7 +45,7 @@ export class Focus {
     this.deps.onChange();
   }
 
-  /** Arrêtée avant la fin : les minutes (et leurs glands) comptent, mais pas de gland doré */
+  /** Arrêtée avant la fin : les minutes (et leurs glands) comptent */
   stop() {
     const a = this.active;
     if (!a) return;
@@ -54,8 +53,8 @@ export class Focus {
     this.active = null;
     const minutes = Math.round((Date.now() - a.startedAt) / 60_000);
     this.deps.journal.focusStopped(minutes);
-    this.deps.journal.addAcorns(minutes, false);
-    this.deps.send({ type: 'focus', on: false, done: false, minutes, acorns: minutes, golden: false });
+    this.deps.journal.addAcorns(minutes);
+    this.deps.send({ type: 'focus', on: false, done: false, minutes, acorns: minutes });
     this.deps.onChange();
   }
 
@@ -65,9 +64,8 @@ export class Focus {
     this.active = null;
     const j = this.deps.journal;
     j.focusDone(a.minutes);
-    const golden = goldenAcorn(a.minutes);
-    j.addAcorns(a.minutes, golden);
-    this.deps.send({ type: 'focus', on: false, done: true, minutes: a.minutes, acorns: a.minutes, golden });
+    j.addAcorns(a.minutes);
+    this.deps.send({ type: 'focus', on: false, done: true, minutes: a.minutes, acorns: a.minutes });
     this.deps.onChange();
 
     // la pause : 5 min après 25, 10 après 50 ou plus
