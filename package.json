@@ -1,7 +1,7 @@
 {
   "name": "gilbert",
   "version": "0.3.0",
-  "description": "Gilbert, compagnon de bureau pixel art",
+  "description": "Gilbert, a pixel-art desktop companion whose intelligence runs entirely on your own computer",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
@@ -146,8 +146,8 @@
       "category": "Utility",
       "icon": "assets/icon.png",
       "maintainer": "Jules Balzarini <66307100+JulesBlz@users.noreply.github.com>",
-      "synopsis": "Gilbert, un raton laveur local sur le bureau",
-      "description": "Gilbert est un raton laveur qui vit sur ton écran : il discute, rappelle tes échéances, trie tes mails et te garde concentré, avec un modèle de langage local.",
+      "synopsis": "A pixel-art desktop raccoon powered by a local language model",
+      "description": "Gilbert is a pixel-art raccoon who lives on your screen: he chats, reminds you of deadlines, triages your mail and keeps you focused, using a local language model.",
       "artifactName": "Gilbert-${version}-linux-x64.${ext}"
     }
   },

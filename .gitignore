@@ -6,3 +6,4 @@ backups/
 .claude/settings.local.json
 *.log
 *.pem
+.claude/

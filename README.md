@@ -41,7 +41,7 @@ The project is roughly 10,000 lines of TypeScript with no UI framework: windows 
 - `src/settings`, `src/carnet`, `src/connections`: the windows (Chat, Dashboard, Shop, Journal, Notebook, Guide, Connections, Settings).
 - `src/shared`: shared types, pixel drawings, skins and accessories.
 - `tools/`: sprite, dumpster and icon generation and cleaning. `scripts/`: build, browser preview and tests.
-- `docs/cahier-des-charges.md`: the product vision, a detailed description of each feature and the roadmap (written in French).
+- `docs/architecture.md`: the product vision, architecture decisions and a description of each feature. `docs/design-system.md`: the pixel-art design system. `docs/models.md`: how the three language models were chosen.
 
 ## Getting started
 
@@ -56,7 +56,7 @@ npm start
 |---|---|
 | `npm start` | Build and launch the app |
 | `npm run typecheck` | Type-check the project |
-| `npm run check:theme` | Check the stylesheets against the design charter ([docs/charte-graphique.md](docs/charte-graphique.md)) |
+| `npm run check:theme` | Check the stylesheets against the design charter ([docs/design-system.md](docs/design-system.md)) |
 | `npm run preview` | Browser preview at http://localhost:5174, without Electron (`/settings/` for the settings window) |
 | `npm run sprites` | Reassemble Gilbert's animation sheet |
 | `npm run dist:mac` | Build the macOS installer (`release/Gilbert-<version>-arm64.dmg`) |
