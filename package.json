@@ -1,6 +1,6 @@
 {
   "name": "gilbert",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Gilbert, compagnon de bureau pixel art",
   "private": true,
   "main": "dist/main.js",
@@ -125,6 +125,7 @@
       "shortcutName": "Gilbert",
       "createDesktopShortcut": "always",
       "installerIcon": "assets/installer.ico"
-    }
+    },
+    "publish": null
   }
 }
