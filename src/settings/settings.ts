@@ -747,7 +747,7 @@ function renderGeneral() {
 
   // l'apparence, en tête : clair, sombre, ou comme le système
   const appearance = h('section', {}, h('h2', {}, t.theme),
-    ...seg<Settings['theme']>('', [['light', t.themes.light], ['dark', t.themes.dark], ['auto', t.themes.auto]], s.theme ?? 'auto', (theme) => set({ theme })));
+    ...seg<Settings['theme']>('', [['light', t.themes.light], ['dark', t.themes.dark], ['auto', t.themes.auto]], s.theme ?? 'light', (theme) => set({ theme })));
 
   const character = h('section', {}, h('h2', {}, t.character),
     ...seg<Lang>(t.lang, [['fr', 'Français'], ['en', 'English'], ['vi', 'Tiếng Việt']], s.lang, (lang) => set({ lang })),

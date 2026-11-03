@@ -59,7 +59,7 @@ export interface Settings {
   webSearch: boolean;
   /** Chercher les nouvelles versions sur GitHub (et proposer de s'y mettre) */
   updates: boolean;
-  /** Apparence : clair, sombre, ou comme le système */
+  /** Apparence : clair (par défaut), sombre, ou comme le système */
   theme: 'auto' | 'light' | 'dark';
   /** Proposer de créer une fiche projet quand un même sujet revient dans les mails */
   projectIdeas: boolean;
@@ -99,7 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
   musicComments: true,
   webSearch: true,
   updates: true,
-  theme: 'auto',
+  theme: 'light',
   projectIdeas: true,
   projectScreen: true,
   journal: true,

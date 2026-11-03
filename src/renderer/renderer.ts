@@ -47,6 +47,7 @@ async function main() {
   if (isPreview) document.body.classList.add('preview');
   resizeCanvas();
   const settings = await api.getSettings();
+  applyTheme(settings.theme);
   await Promise.all([loadSprites(settings.skin), document.fonts.ready]);
   setLang(settings.lang);
   setSoundEnabled(!settings.muted);

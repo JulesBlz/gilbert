@@ -15,7 +15,7 @@ Gilbert is a raccoon who lives on your screen (macOS and Windows). He chats with
 - **Focus.** Timed work sessions that earn acorns (one per minute) which rain down on the screen and are collected by hovering the mouse over them, a daily journal, statistics and a weekly summary.
 - **Desktop life.** Physics-based jumping and throwing, perching on windows, messaging badges (WhatsApp, Messages), and reactions to the music playing (Spotify, Apple Music).
 - **Projects.** One sheet per important project: a progress gauge, a to-do list with deadlines, and a short written report that Gilbert keeps up to date from your emails and (optionally) what he sees on screen. He reminds you of deadlines and of what you might forget, proposes draft replies and follow-ups, and offers to create a sheet when a topic keeps coming back in your mail (he always asks first).
-- **Customisation.** A shop where acorns buy fur colours and accessories (drawn pixel by pixel, applied to every animation), a light and a dark theme, a quick switcher (`Cmd/Ctrl+K`) and keyboard shortcuts.
+- **Customisation.** A shop where acorns buy fur colours and accessories (drawn pixel by pixel, applied to every animation), a light theme (the default) and a dark one (Settings > Appearance: Light, Dark or System), a quick switcher (`Cmd/Ctrl+K`) and keyboard shortcuts.
 - **Updates (macOS).** Gilbert checks GitHub for a newer release and offers to install it; the archive is signed and verified first (see "Updates" below).
 - **Frictionless install.** A `.dmg` / `.exe` installer. On macOS, Gilbert settles on the desktop as a green dumpster icon: he jumps out of it at launch, and you drop him back in to quit.
 
@@ -68,6 +68,8 @@ Behavioural tests run against the real model rather than mocks, to check what Gi
 
 ## Installing and sharing
 
+Download the installer from the [Releases page](https://github.com/JulesBlz/gilbert/releases): `Gilbert-<version>-arm64.dmg` for macOS, `Gilbert.Setup.<version>.exe` for Windows (x64).
+
 Requirements: a Mac with Apple Silicon (M1 or newer), about 8 GB of free disk space (the app is about 700 MB, plus the language model), and an internet connection for the first launch.
 
 1. Open the installer (`Gilbert-<version>-arm64.dmg`), then double-click **Gilbert**.
@@ -84,7 +86,7 @@ Pushing a version tag (`npm run release` bumps the patch version, tags and pushe
 
 - The archive is signed with Ed25519. The private key never enters the repository: it lives in `~/.gilbert/update-signing-key.pem` and in the repository secret `UPDATE_KEY` (`gh secret set UPDATE_KEY < ~/.gilbert/update-signing-key.pem`). The public key is in `src/main/updater.ts`; Gilbert refuses any archive whose signature (over version + SHA-256) does not match, and any version that is not newer.
 - Only `github.com` addresses of this repository are followed, the download is size-capped, nothing is extracted before verification, and the extracted app must carry the expected bundle identifier and version.
-- Can be switched off in Settings ("Check for updates"). Versions installed before this feature must be reinstalled once by hand.
+- Can be switched off in Settings ("Check for updates"). Updates are macOS only (on Windows, install the new `.exe`). Versions installed before 0.2 must be reinstalled once by hand.
 
 ## Privacy
 
@@ -94,7 +96,7 @@ Pushing a version tag (`npm run release` bumps the patch version, tags and pushe
 
 ## Project status
 
-A personal project at version 0.1, tested on macOS (Apple Silicon). The Windows code (vision, music, installer) is written but less thoroughly tested. There is no automated test pipeline, since the tests need a real model of several gigabytes. No licence has been chosen yet.
+A personal project at version 0.2, tested on macOS (Apple Silicon). The Windows code (vision, music, installer) is written but less thoroughly tested. There is no automated test pipeline, since the tests need a real model of several gigabytes. No licence has been chosen yet.
 
 ## Credits
 

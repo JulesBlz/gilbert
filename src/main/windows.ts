@@ -71,15 +71,25 @@ function openPage(key: string, title: string, size: { width: number; height: num
     win.show();
     app.focus({ steal: true });
   });
-  win.once('show', () => watchers.get(key)?.(win.getBounds()));
+  win.once('show', () => { const b = win.getBounds(); lastSig = `${b.x},${b.y},${b.width},${b.height}`; watchers.get(key)?.(b); });
   // on la déplace ou on la redimensionne : Gilbert la suit en direct, sans sauter (au plus toutes les 40 ms)
   let last = 0;
+  let lastSig = '';
   let trailing: NodeJS.Timeout | null = null;
   const follow = () => {
     if (win.isDestroyed()) return;
     const wait = 40 - (Date.now() - last);
     if (trailing) clearTimeout(trailing);
-    const go = () => { trailing = null; last = Date.now(); if (!win.isDestroyed()) watchers.get(key)?.(win.getBounds(), true); };
+    const go = () => {
+      trailing = null;
+      last = Date.now();
+      if (win.isDestroyed()) return;
+      // seulement si la fenêtre a vraiment changé de place ou de taille (sinon un événement sans changement relancerait tout)
+      const b = win.getBounds(), sig = `${b.x},${b.y},${b.width},${b.height}`;
+      if (sig === lastSig) return;
+      lastSig = sig;
+      watchers.get(key)?.(b, true);
+    };
     if (wait <= 0) go(); else trailing = setTimeout(go, wait);
   };
   win.on('move', follow);

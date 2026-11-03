@@ -1062,7 +1062,7 @@ if (!app.requestSingleInstanceLock()) {
     let moving = false;
     onPageWindow('settings', (b, follow) => {
       // tant que sa fenêtre est ouverte, Gilbert (et ses bulles) passent au-dessus d'elle
-      win?.setAlwaysOnTop(true, b ? 'pop-up-menu' : 'floating');
+      if (!follow) win?.setAlwaysOnTop(true, b ? 'pop-up-menu' : 'floating');
       settingsBounds = b;
       if (!b) settingsTab = 'home';
       if (settled) { clearTimeout(settled); settled = null; }
