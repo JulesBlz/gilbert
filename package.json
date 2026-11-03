@@ -1,6 +1,6 @@
 {
   "name": "gilbert",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Gilbert, compagnon de bureau pixel art",
   "private": true,
   "main": "dist/main.js",
