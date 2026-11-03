@@ -31,14 +31,29 @@ const FURS: (Item & { colors: string[] | null })[] = [
   { id: 'fox', kind: 'fur', name: { fr: 'Renard roux', en: 'Red fox', vi: 'Cáo đỏ' }, price: { acorns: 300 }, colors: ['#4a2412', '#7a3a18', '#b4592a', '#df8a4e'] },
   { id: 'snow', kind: 'fur', name: { fr: 'Neige', en: 'Snow', vi: 'Tuyết' }, price: { acorns: 300 }, colors: ['#6b7380', '#9aa1ab', '#c8ccd2', '#eceef1'] },
   { id: 'night', kind: 'fur', name: { fr: 'Minuit', en: 'Midnight', vi: 'Nửa đêm' }, price: { acorns: 450 }, colors: ['#151b2e', '#222c4a', '#34446e', '#5b6fa3'] },
+  { id: 'choco', kind: 'fur', name: { fr: 'Chocolat', en: 'Chocolate', vi: 'Sô-cô-la' }, price: { acorns: 300 }, colors: ['#2b1a12', '#4a2e1e', '#6e4630', '#9a6b4c'] },
+  { id: 'sand', kind: 'fur', name: { fr: 'Caramel', en: 'Caramel', vi: 'Caramen' }, price: { acorns: 300 }, colors: ['#5a3f22', '#8c6a3c', '#c29a64', '#e8cd9c'] },
+  { id: 'mint', kind: 'fur', name: { fr: 'Menthe', en: 'Mint', vi: 'Bạc hà' }, price: { acorns: 400 }, colors: ['#1f4a43', '#2f7a6c', '#55ad98', '#93dbc4'] },
+  { id: 'ocean', kind: 'fur', name: { fr: 'Océan', en: 'Ocean', vi: 'Đại dương' }, price: { acorns: 450 }, colors: ['#0f3b55', '#1b6382', '#3792b5', '#7ac6df'] },
+  { id: 'lavender', kind: 'fur', name: { fr: 'Lavande', en: 'Lavender', vi: 'Oải hương' }, price: { acorns: 450 }, colors: ['#3d2f66', '#61509c', '#8c7bc9', '#bcb0ee'] },
+  { id: 'candy', kind: 'fur', name: { fr: 'Bonbon', en: 'Candy', vi: 'Kẹo ngọt' }, price: { acorns: 500 }, colors: ['#6e2f4c', '#a24e75', '#d57ba3', '#f2b0cc'] },
+  { id: 'coal', kind: 'fur', name: { fr: 'Charbon', en: 'Charcoal', vi: 'Than đen' }, price: { acorns: 600 }, colors: ['#0d0d10', '#1c1c22', '#33333c', '#5a5a66'] },
   { id: 'gold', kind: 'fur', name: { fr: 'Or massif', en: 'Solid gold', vi: 'Vàng ròng' }, price: { acorns: 900 }, colors: ['#5a4210', '#8a6618', '#c39a2c', '#ecc95a'] },
 ];
 
 const ACCESSORIES: Item[] = [
-  { id: 'glasses', kind: 'accessory', name: { fr: 'Lunettes rondes', en: 'Round glasses', vi: 'Kính tròn' }, price: { acorns: 150 } },
-  { id: 'shades', kind: 'accessory', name: { fr: 'Lunettes de soleil', en: 'Sunglasses', vi: 'Kính râm' }, price: { acorns: 250 } },
-  { id: 'crown', kind: 'accessory', name: { fr: 'Couronne', en: 'Crown', vi: 'Vương miện' }, price: { acorns: 700 } },
+  { id: 'flower', kind: 'accessory', name: { fr: 'Fleur', en: 'Flower', vi: 'Bông hoa' }, price: { acorns: 100 } },
+  { id: 'party', kind: 'accessory', name: { fr: 'Chapeau de fête', en: 'Party hat', vi: 'Mũ tiệc' }, price: { acorns: 150 } },
+  { id: 'bowtie', kind: 'accessory', name: { fr: 'Nœud papillon', en: 'Bow tie', vi: 'Nơ cổ' }, price: { acorns: 150 } },
+  { id: 'scarf', kind: 'accessory', name: { fr: 'Écharpe', en: 'Scarf', vi: 'Khăn quàng' }, price: { acorns: 250 } },
+  { id: 'phones', kind: 'accessory', name: { fr: 'Casque audio', en: 'Headphones', vi: 'Tai nghe' }, price: { acorns: 350 } },
+  { id: 'tophat', kind: 'accessory', name: { fr: 'Haut-de-forme', en: 'Top hat', vi: 'Mũ chóp cao' }, price: { acorns: 500 } },
+  { id: 'wizard', kind: 'accessory', name: { fr: 'Chapeau de sorcier', en: 'Wizard hat', vi: 'Mũ phù thủy' }, price: { acorns: 550 } },
+  { id: 'halo', kind: 'accessory', name: { fr: 'Auréole', en: 'Halo', vi: 'Vầng hào quang' }, price: { acorns: 800 } },
 ];
+
+/** Les objets retirés de la boutique (leur prix est rendu en glands) */
+export const RETIRED: Record<string, number> = { glasses: 150, shades: 250, crown: 700, lime: 500, beanie: 200 };
 
 export const SHOP = { furs: FURS as Item[], accessories: ACCESSORIES };
 export const itemById = (id: string) => [...FURS, ...ACCESSORIES].find((i) => i.id === id) ?? null;
@@ -106,67 +121,173 @@ function allEyes(data: ImageData, atlas: Atlas) {
 }
 
 // ---------- les dessins des accessoires ----------
+// Chaque dessin est une grille de lettres (une lettre = un pixel de la planche), centrée sur la tête.
+// Les chapeaux posent leur dernière ligne sur le front ; le reste se cale sur les yeux.
 
 type Paint = (x: number, y: number, color: string) => void;
 
-const GOLD = '#e2b84a', GOLD_DARK = '#a07a22', GOLD_LIGHT = '#f6e29a';
-
-/** Une monture ronde autour d'un œil : les bords dorés, les coins plus sombres (l'œil reste visible) */
-function lens(paint: Paint, [x, y]: [number, number]) {
-  for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) paint(x + dx, y + dy, dy === 1 ? GOLD_DARK : GOLD);
-  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) paint(x + dx, y + dy, GOLD_DARK);
+interface Drawing {
+  rows: string[];
+  /** les '#' prennent ces couleurs, en rayures obliques de deux pixels */
+  stripes?: string[];
+  /** la version de profil (pour les accessoires du cou) : où la poser par rapport à l'œil, et son dessin */
+  side?: { rows: string[]; dx: number; dy: number };
+  pal: Record<string, string>;
+  /** 'hat' : la dernière ligne repose sur le front ; 'float' : flotte au-dessus ; 'neck' : sous le menton */
+  at: 'hat' | 'float' | 'neck' | 'eyes';
+  /** décalage vertical (en pixels) par rapport à l'ancrage, vers le bas */
+  dy?: number;
 }
 
-/** Un verre fumé plein (il cache l'œil), avec son reflet */
-function shade(paint: Paint, [x, y]: [number, number]) {
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) paint(x + dx, y + dy, dy === 1 ? '#1d2a5c' : '#2b3f86');
-  paint(x - 1, y - 1, '#9cc0ff');
-  paint(x, y - 1, '#5f7fd0');
-}
+const RED = { R: '#c2463c', r: '#8e2f2a', P: '#e8705f' };
+const CREAM = { C: '#efe6cf', c: '#c9bea3' };
 
-/** Une ligne de pixels entre deux points (pont des lunettes, branches) */
-function line(paint: Paint, [x0, y0]: [number, number], [x1, y1]: [number, number], color: string) {
-  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-  for (let i = 0; i <= n; i++) paint(Math.round(x0 + ((x1 - x0) * i) / (n || 1)), Math.round(y0 + ((y1 - y0) * i) / (n || 1)), color);
-}
-
-const CROWN = [
-  'Y...Y...Y',
-  'YY.YLY.YY',
-  'YYYYYYYYY',
-  'YRYDBDYRY',
-  'DDDDDDDDD',
-];
+const DRAWINGS: Record<string, Drawing> = {
+  tophat: {
+    at: 'hat',
+    pal: { O: '#16161d', K: '#2b2b36', k: '#4d4d62', B: '#b3353d', b: '#7c2228', G: '#e8c24e' },
+    rows: [
+      '..OOOOOOOOOOO..',
+      '..OkkKKKKKKKO..',
+      '..OkkKKKKKKKO..',
+      '..OkkKKKKKKKO..',
+      '..OkkKKKKKKKO..',
+      '..OkKKKKKKKKO..',
+      '..OBBBBBBBBBO..',
+      '..ObbbbbbbbbO..',
+      '..OkKKKKKKKKO..',
+      '.OkkKKKKKKKKKO.',
+      'OOOOOOOOOOOOOOO',
+    ],
+  },
+  party: {
+    at: 'hat',
+    stripes: ['A', 'B', 'D'],
+    pal: { A: '#e8689a', B: '#f2cf4a', D: '#58c0d8', W: '#f7f2e4', w: '#d9d2bd' },
+    rows: [
+      '......WWW......',
+      '......wWw......',
+      '.......#.......',
+      '.......#.......',
+      '......###......',
+      '......###......',
+      '.....#####.....',
+      '.....#####.....',
+      '....#######....',
+      '....#######....',
+    ],
+  },
+  wizard: {
+    at: 'hat',
+    pal: { O: '#14163a', N: '#3a3d86', n: '#6468c4', D: '#262864', Y: '#f6d550', G: '#e8c24e', g: '#a07a22' },
+    rows: [
+      '.........OO....',
+      '........OnDO...',
+      '........OnDO...',
+      '.......OYNDO...',
+      '.......OnNNDO..',
+      '......OnNNYDO..',
+      '......OnNNNDO..',
+      '.....OnNYNNDO..',
+      '....OGGGGGGGO..',
+      '....OgggggggO..',
+      '.OnnNNNNNNNNNO.',
+      'ODDDDDDDDDDDDDO',
+    ],
+  },
+  phones: {
+    at: 'eyes',
+    dy: 0,
+    side: { dx: -3, dy: -6, rows: ['.KKKKKKK..', 'K.......K.', 'K.......K.', '......KKKK', '......KPRK', '......KRRK', '......KRRK', '......KKKK'] },
+    pal: { K: '#2e2e3a', k: '#4a4a5a', R: '#d8584a', P: '#f0907f' },
+    rows: [
+      '.....KKKKKKKKKKK.....',
+      '....K...........K....',
+      '...K.............K...',
+      '...K.............K...',
+      '...K.............K...',
+      '..KKKK.........KKKK..',
+      '..KPRK.........KRPK..',
+      '..KRRK.........KRRK..',
+      '..KRRK.........KRRK..',
+      '..KRRK.........KRRK..',
+      '..KKKK.........KKKK..',
+    ],
+  },
+  halo: {
+    at: 'float',
+    pal: { G: '#f2cf4a', g: '#a07a22', L: '#fbeaa8' },
+    rows: [
+      '...LLLLL...',
+      '.GG.....GG.',
+      '...ggggg...',
+    ],
+  },
+  flower: {
+    at: 'hat',
+    dy: 2,
+    pal: { P: '#f27ca6', p: '#c94f80', Y: '#f2cf4a', G: '#4a9a52' },
+    rows: [
+      '.............PPP.....',
+      '............PPYPP....',
+      '............PYYYP....',
+      '............pPYPp....',
+      '.............pPp.....',
+      '..............G......',
+    ],
+  },
+  bowtie: {
+    at: 'neck',
+    pal: { R: '#c2463c', r: '#8e2f2a', d: '#6a2220' },
+    side: { dx: 2, dy: 2, rows: ['RR.RR', 'RRdRR', 'RR.RR'] },
+    rows: [
+      'RRr...rRR',
+      'RRRrdrRRR',
+      'RRr...rRR',
+    ],
+  },
+  scarf: {
+    at: 'neck',
+    pal: { R: '#c2463c', r: '#8e2f2a', C: '#efe6cf', c: '#c9bea3' },
+    side: { dx: 2, dy: 2, rows: ['RCRC', 'rcrc', 'RCRC', 'rcrc'] },
+    rows: [
+      'RRCRRCRRCRR',
+      'rrcrrcrrcrr',
+      '........RR.',
+      '........CC.',
+      '........RR.',
+      '........rr.',
+    ],
+  },
+};
 
 function paintAccessory(id: string, paint: Paint, eyes: Eyes, opaque: (x: number, y: number) => boolean) {
-  if (id === 'glasses' || id === 'shades') {
-    const glass = id === 'glasses' ? lens : shade;
-    const rim = id === 'glasses' ? GOLD : '#c2463c';
-    if (eyes.kind === 'front') {
-      const { l, r } = eyes;
-      // le pont entre les deux verres, puis les branches vers les oreilles
-      line(paint, [l[0] + 2, l[1] - 1], [r[0] - 2, r[1] - 1], rim);
-      line(paint, [l[0] - 2, l[1] - 1], [l[0] - 3, l[1] - 1], rim);
-      line(paint, [r[0] + 2, r[1] - 1], [r[0] + 3, r[1] - 1], rim);
-      glass(paint, l);
-      glass(paint, r);
-    } else {
-      // de profil : un verre, le pont vers le museau, la branche vers l'oreille
-      const e = eyes.e;
-      paint(e[0] - 2, e[1] - 1, rim);
-      line(paint, [e[0] + 2, e[1] - 1], [e[0] + 5, e[1] - 1], rim);
-      glass(paint, e);
-    }
+  const d = DRAWINGS[id];
+  if (!d) return;
+  const side = eyes.kind === 'side';
+  // l'axe de la tête et la hauteur des yeux
+  const cx = side ? eyes.e[0] + 1 : Math.round((eyes.l[0] + eyes.r[0]) / 2);
+  const ey = side ? eyes.e[1] : Math.min(eyes.l[1], eyes.r[1]);
+  // pendu, tête en bas, ou penché : on ne pose rien
+  if (!side && eyes.l[1] !== eyes.r[1]) return;
+  // le haut de la tête : la première ligne pleine au-dessus des yeux, près de l'axe
+  let top = -1;
+  for (let y = ey - 9; y <= ey - 3 && top < 0; y++) for (let x = cx - 2; x <= cx + 2; x++) if (opaque(x, y)) { top = y; break; }
+  if (top < 0 || top > ey - 5) return;
+  // quelque chose au-dessus de la tête (la queue, un bond) : on ne pose pas de chapeau
+  if (d.at !== 'neck') for (let y = top - 14; y < top - 2; y++) for (let x = cx - 7; x <= cx + 7; x++) if (opaque(x, y)) return;
+  const w = d.rows[0].length;
+  const x0 = cx - (w >> 1);
+  const y0 = d.at === 'eyes' ? ey + 2 + (d.dy ?? 0) - d.rows.length + 1 : d.at === 'neck' ? ey + 4 + (d.dy ?? 0) : (d.at === 'float' ? top - 4 : top + 1 + (d.dy ?? 0)) - d.rows.length + 1;
+  if (side && (d.at === 'neck' || d.side)) {
+    if (!d.side) return;
+    d.side.rows.forEach((row, j) => [...row].forEach((c, i) => { if (d.pal[c]) paint(eyes.e[0] + d.side!.dx + i, eyes.e[1] + d.side!.dy + j, d.pal[c]); }));
     return;
   }
-  if (id === 'crown') {
-    const [cx, ey] = eyes.kind === 'front' ? [Math.round((eyes.l[0] + eyes.r[0]) / 2), Math.min(eyes.l[1], eyes.r[1])] : [eyes.e[0] + 2, eyes.e[1]];
-    // la tête doit être droite et dégagée au-dessus (pas quand il pend, tête en bas sous le corps)
-    if (eyes.kind === 'front' && Math.abs(eyes.l[1] - eyes.r[1]) > 0) return;
-    if (opaque(cx, ey - 9) || !opaque(cx, ey - 5)) return;
-    const colors: Record<string, string> = { Y: GOLD, L: GOLD_LIGHT, D: GOLD_DARK, R: '#c2463c', B: '#4a78b8' };
-    CROWN.forEach((row, j) => [...row].forEach((c, i) => { if (colors[c]) paint(cx - 4 + i, ey - 9 + j, colors[c]); }));
-  }
+  d.rows.forEach((row, j) => [...row].forEach((c, i) => {
+    const k = c === '#' && d.stripes ? d.stripes[((i + j) >> 1) % d.stripes.length] : c;
+    if (d.pal[k]) paint(x0 + i, y0 + j, d.pal[k]);
+  }));
 }
 
 // ---------- la planche habillée ----------
@@ -191,7 +312,8 @@ export function paintSkin(src: ImageData, atlas: Atlas, skin: Skin) {
     const S = atlas.size;
     for (const [name, i] of Object.entries(atlas.frames)) {
       const e = eyes[name];
-      if (!e) continue;
+      // pendu par la queue ou se débattant : tête en bas, rien ne tient
+      if (!e || /^(hang|gtail|gbody|pulled|fall)/.test(name)) continue;
       const fx = (i % atlas.cols) * S, fy = Math.floor(i / atlas.cols) * S;
       const at = (x: number, y: number) => ((fy + y) * out.width + fx + x) * 4;
       const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < S && y < S;

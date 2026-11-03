@@ -1,6 +1,6 @@
 {
   "name": "gilbert",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Gilbert, compagnon de bureau pixel art",
   "private": true,
   "main": "dist/main.js",
@@ -23,7 +23,8 @@
     "dist:win": "npm run build && electron-builder --win",
     "test:features": "esbuild scripts/features-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/features-test.js --log-level=warning && electron dist/features-test.js",
     "test:voice": "esbuild scripts/voice-test.ts --bundle --platform=node --format=cjs --external:electron --external:@huggingface/transformers --outfile=dist/voice-test.js --log-level=warning && electron dist/voice-test.js",
-    "test:extras": "esbuild scripts/extras-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/extras-test.js --log-level=warning && electron dist/extras-test.js"
+    "test:extras": "esbuild scripts/extras-test.ts --bundle --platform=node --format=cjs --external:electron --external:node-llama-cpp --external:imapflow --external:mailparser --external:ical.js --outfile=dist/extras-test.js --log-level=warning && electron dist/extras-test.js",
+    "release": "npm version patch -m \"Gilbert %s\" && git push --follow-tags"
   },
   "devDependencies": {
     "@fontsource/bytesized": "^5.3.0",

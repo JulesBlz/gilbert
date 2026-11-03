@@ -251,6 +251,13 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
   labels();
   drawThread();
 
+  /** La recherche rapide (⌘K) ouvre une discussion, ou en commence une neuve */
+  window.addEventListener('gilbert:chat', (e) => {
+    const id = (e as CustomEvent<string>).detail;
+    if (id === 'new') void fresh();
+    else chat.list().then((l) => { threads = l; return select(id); }).catch(() => {});
+  });
+
   /** À l'ouverture de l'onglet : la dernière discussion, ou une neuve */
   return async () => {
     threads = await chat.list();

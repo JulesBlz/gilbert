@@ -60,6 +60,7 @@ export class MemoryStore extends EventEmitter {
       facts: (m.facts ?? [])
         .map((f) => ({ ...f, id: f.id || randomUUID(), text: clean(f.text), createdAt: f.createdAt || Date.now() }))
         .filter((f) => f.text),
+      distractions: [...new Set((m.distractions ?? []).map((d) => clean(d).slice(0, 60)).filter(Boolean))].slice(0, 20),
     };
     this.commit();
   }

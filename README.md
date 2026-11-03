@@ -14,7 +14,9 @@ Gilbert is a raccoon who lives on your screen (macOS and Windows). He chats with
 - **Screen awareness.** Detects the foreground app, reads on-screen text through the operating system's OCR and reacts to it. Before pointing out a typo he zooms in on the spot, rereads it enlarged and has the model confirm it, so misread letters are not reported as mistakes. Also helps with what you copy (rewrite, summarise, translate) without ever overwriting your clipboard.
 - **Focus.** Timed work sessions that earn acorns (one per minute) which rain down on the screen and are collected by hovering the mouse over them, a daily journal, statistics and a weekly summary.
 - **Desktop life.** Physics-based jumping and throwing, perching on windows, messaging badges (WhatsApp, Messages), and reactions to the music playing (Spotify, Apple Music).
-- **Customisation.** A shop where acorns buy fur colours and accessories, applied to every animation.
+- **Projects.** One sheet per important project: a progress gauge, a to-do list with deadlines, and a short written report that Gilbert keeps up to date from your emails and (optionally) what he sees on screen. He reminds you of deadlines and of what you might forget, proposes draft replies and follow-ups, and offers to create a sheet when a topic keeps coming back in your mail (he always asks first).
+- **Customisation.** A shop where acorns buy fur colours and accessories (drawn pixel by pixel, applied to every animation), a light and a dark theme, a quick switcher (`Cmd/Ctrl+K`) and keyboard shortcuts.
+- **Updates (macOS).** Gilbert checks GitHub for a newer release and offers to install it; the archive is signed and verified first (see "Updates" below).
 - **Frictionless install.** A `.dmg` / `.exe` installer. On macOS, Gilbert settles on the desktop as a green dumpster icon: he jumps out of it at launch, and you drop him back in to quit.
 
 ## Technical overview
@@ -68,7 +70,7 @@ Behavioural tests run against the real model rather than mocks, to check what Gi
 
 Requirements: a Mac with Apple Silicon (M1 or newer), about 8 GB of free disk space (the app is about 700 MB, plus the language model), and an internet connection for the first launch.
 
-1. Open the installer (`Gilbert-0.1.0-arm64.dmg`), then double-click **Gilbert**.
+1. Open the installer (`Gilbert-<version>-arm64.dmg`), then double-click **Gilbert**.
 2. The app is not signed by Apple (no developer account), so macOS may refuse the first launch: right-click **Gilbert** and choose **Open**. If macOS reports the app as damaged, run `xattr -cr ~/Desktop/Gilbert.app` in the Terminal, then open it again.
 3. Gilbert finishes the installation by himself in a few seconds: he copies himself to the desktop (where he takes the dumpster icon), restarts from there, ejects the installer and moves it to the Trash. Accept the one-time request to control Finder (it lets him find his icon).
 4. On first launch he offers to download his brain (3 sizes: Light, Balanced, Powerful; the one matching your RAM is starred) and to ask a few questions about you. Both can be skipped and changed later in Settings. macOS may ask for your session password once for the keychain: choose "Always Allow".
@@ -76,10 +78,18 @@ Requirements: a Mac with Apple Silicon (M1 or newer), about 8 GB of free disk sp
 
 Each person gets their own Gilbert: brain, memory and connections stay on their machine. Build the installer yourself with `npm run dist:mac` (output in `release/`). Windows: the `.exe` installer (built on Windows, or by the GitHub workflow) creates a desktop shortcut; SmartScreen asks for a confirmation because the app is not signed either; the Windows code is less tested.
 
+### Updates (maintainer)
+
+Pushing a version tag (`npm run release` bumps the patch version, tags and pushes) makes the GitHub workflow build the installers, a signed update archive (`Gilbert-<version>-arm64.zip` + `.zip.sig`) and attach them to a release. Installed Macs check the latest release (at launch, then every 6 hours) and ask before updating.
+
+- The archive is signed with Ed25519. The private key never enters the repository: it lives in `~/.gilbert/update-signing-key.pem` and in the repository secret `UPDATE_KEY` (`gh secret set UPDATE_KEY < ~/.gilbert/update-signing-key.pem`). The public key is in `src/main/updater.ts`; Gilbert refuses any archive whose signature (over version + SHA-256) does not match, and any version that is not newer.
+- Only `github.com` addresses of this repository are followed, the download is size-capped, nothing is extracted before verification, and the extracted app must carry the expected bundle identifier and version.
+- Can be switched off in Settings ("Check for updates"). Versions installed before this feature must be reinstalled once by hand.
+
 ## Privacy
 
-- Replies, memory, screen reading and voice are all processed on the device.
-- The network is used only to download the models, to fetch the weather (Open-Meteo, no account), to search the web when he needs to (only the question is sent, to DuckDuckGo; optional) and to reach the mailbox and calendar you connect yourself.
+- Replies, memory, screen reading and voice are all processed on the device. Project sheets (optional) may keep one short line or a to-do taken from an email or a window that mentions the project; no image or screen text is stored.
+- The network is used only to download the models, to check GitHub for a newer version (an anonymous request; optional), to fetch the weather (Open-Meteo, no account), to search the web when he needs to (only the question is sent, to DuckDuckGo; optional) and to reach the mailbox and calendar you connect yourself.
 - Data lives in the application folder (`~/Library/Application Support/gilbert/` on macOS, `%APPDATA%\gilbert\` on Windows) as readable JSON; the mail password is encrypted by the system keychain.
 
 ## Project status

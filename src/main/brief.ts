@@ -113,21 +113,28 @@ export class BriefStore {
     return true;
   }
 
+  /** Le lieu de `city` (trouvé une fois, puis gardé) ; null si inconnu ou pas de réseau */
+  private async place(city: string, lang: Lang) {
+    let place = this.saved.place?.city === city ? this.saved.place : null;
+    if (!place) {
+      const q = new URLSearchParams({ name: city, count: '1', language: lang, format: 'json' });
+      const geo = await getJson(`https://geocoding-api.open-meteo.com/v1/search?${q}`) as { results?: { name: string; latitude: number; longitude: number }[] };
+      const hit = geo.results?.[0];
+      if (!hit) return null;
+      place = { city, name: hit.name, lat: hit.latitude, lon: hit.longitude };
+      this.saved.place = place;
+      this.save();
+    }
+    return place;
+  }
+
   /** Météo du jour à `city` ; null si pas de ville ou pas de réseau */
   async weather(city: string, lang: Lang): Promise<Weather | null> {
     city = city.trim();
     if (!city) return null;
     try {
-      let place = this.saved.place?.city === city ? this.saved.place : null;
-      if (!place) {
-        const q = new URLSearchParams({ name: city, count: '1', language: lang, format: 'json' });
-        const geo = await getJson(`https://geocoding-api.open-meteo.com/v1/search?${q}`) as { results?: { name: string; latitude: number; longitude: number }[] };
-        const hit = geo.results?.[0];
-        if (!hit) return null;
-        place = { city, name: hit.name, lat: hit.latitude, lon: hit.longitude };
-        this.saved.place = place;
-        this.save();
-      }
+      const place = await this.place(city, lang);
+      if (!place) return null;
       const q = new URLSearchParams({
         latitude: String(place.lat), longitude: String(place.lon), timezone: 'auto', forecast_days: '1',
         daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
@@ -143,6 +150,35 @@ export class BriefStore {
         max: Math.round(d.temperature_2m_max[0]),
         rain: d.precipitation_probability_max[0] ?? 0,
       };
+    } catch {
+      return null;
+    }
+  }
+
+  /** De la pluie demain en fin de journée (16 h à 21 h) ? Renvoie la première heure de pluie et le risque ; null sinon */
+  async rainTomorrowEvening(city: string, lang: Lang, now = new Date()): Promise<{ hour: number; prob: number } | null> {
+    city = city.trim();
+    if (!city) return null;
+    try {
+      const place = await this.place(city, lang);
+      if (!place) return null;
+      const q = new URLSearchParams({
+        latitude: String(place.lat), longitude: String(place.lon), timezone: 'auto', forecast_days: '3',
+        hourly: 'precipitation_probability,precipitation',
+      });
+      const f = await getJson(`https://api.open-meteo.com/v1/forecast?${q}`) as { hourly: { time: string[]; precipitation_probability: (number | null)[]; precipitation: (number | null)[] } };
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      const day = isoDay(tomorrow);
+      let first = -1, prob = 0;
+      f.hourly.time.forEach((t, i) => {
+        const hour = Number(t.slice(11, 13));
+        if (!t.startsWith(day) || hour < 16 || hour > 21) return;
+        const p = f.hourly.precipitation_probability[i] ?? 0, mm = f.hourly.precipitation[i] ?? 0;
+        prob = Math.max(prob, p);
+        if (first < 0 && (p >= 50 || mm >= 0.5)) first = hour;
+      });
+      return first >= 0 ? { hour: first, prob } : null;
     } catch {
       return null;
     }

@@ -18,8 +18,8 @@ const files = [];
 
 // seul le faux fond de bureau de l'aperçu navigateur échappe à la charte
 const ALLOWED = [/#4a5a78/];
-// les couleurs des données SVG (la queue de la bulle) sont celles de la charte : encre et carte
-const SVG_COLORS = new Set(['%231f1b16', '%23fbf5e6']);
+// les couleurs des données SVG (les queues de bulle) sont celles de la charte : encre et carte, en clair et en sombre
+const SVG_COLORS = new Set(['%231f1b16', '%23fbf5e6', '%23f1e8d4', '%2326211a']);
 
 let bad = 0;
 for (const file of files) {

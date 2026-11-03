@@ -69,8 +69,8 @@ function sheetFor(skin: Skin) {
   return c ?? null;
 }
 
-/** La pose assise, cadrée sur Gilbert (couronne comprise), à l'échelle `scale` */
-const CROP = { x: 12, y: 21, w: 30, h: 23 };
+/** La pose assise, cadrée sur Gilbert (chapeau compris), à l'échelle `scale` */
+const CROP = { x: 12, y: 15, w: 30, h: 29 };
 function portrait(canvas: HTMLCanvasElement, skin: Skin, scale: number, crop = CROP) {
   canvas.width = crop.w * scale;
   canvas.height = crop.h * scale;
@@ -84,7 +84,7 @@ function portrait(canvas: HTMLCanvasElement, skin: Skin, scale: number, crop = C
 }
 
 /** La tête seule (pour les accessoires) */
-const HEAD = { x: 14, y: 22, w: 18, h: 15 };
+const HEAD = { x: 11, y: 16, w: 23, h: 26 };
 
 function acorn() {
   const c = h<HTMLCanvasElement>('canvas', { width: 20, height: 20, className: 'acorn-small' });

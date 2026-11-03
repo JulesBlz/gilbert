@@ -1,6 +1,7 @@
 // Le carnet de Gilbert : tout ce qu'il sait de toi, modifiable. Chaque changement est
 // enregistré tout seul après une courte pause. C'est un onglet de la fenêtre des réglages.
 
+import { saved } from '../settings/saved';
 import { EMPTY_MEMORY, type CarnetApi, type Lang, type Memory, type Profile } from '../shared/types';
 
 declare global {
@@ -26,6 +27,9 @@ const T = {
     facts: "Ce que j'ai retenu",
     noFacts: "Rien encore. Discute avec moi, j'apprendrai.",
     addFact: '+ Ajouter un souvenir',
+    distractions: 'Mes distractions',
+    distractionsHint: 'Sites ou applis qui te font décrocher (youtube, instagram, steam…). Pendant une session de travail, si tu restes 10 minutes dessus, je te le dis.',
+    addDistraction: '+ Ajouter une distraction', distractionPh: 'youtube, reddit, jeux…',
     sources: { onboarding: 'quand on a fait connaissance', conversation: 'en discutant', carnet: 'ajouté ici' },
     forget: 'Tout oublier',
     forgetConfirm: "Gilbert va tout oublier de toi (profil, proches, souvenirs). C'est définitif. On y va ?",
@@ -50,6 +54,9 @@ const T = {
     facts: "What I've learned",
     noFacts: "Nothing yet. Chat with me, I'll learn.",
     addFact: '+ Add a memory',
+    distractions: 'My distractions',
+    distractionsHint: 'Sites or apps that pull you away (youtube, instagram, steam…). During a work session, if you stay on one for 10 minutes, I tell you.',
+    addDistraction: '+ Add a distraction', distractionPh: 'youtube, reddit, games…',
     sources: { onboarding: 'when we got to know each other', conversation: 'while chatting', carnet: 'added here' },
     forget: 'Forget everything',
     forgetConfirm: 'Gilbert will forget everything about you (profile, close ones, memories). This cannot be undone. Go ahead?',
@@ -74,6 +81,9 @@ const T = {
     facts: 'Những điều tớ đã nhớ',
     noFacts: 'Chưa có gì. Trò chuyện với tớ đi, tớ sẽ học.',
     addFact: '+ Thêm kỷ niệm',
+    distractions: 'Những thứ làm tớ xao nhãng',
+    distractionsHint: 'Trang web hoặc ứng dụng làm cậu mất tập trung (youtube, instagram, steam…). Trong phiên làm việc, nếu cậu ở đó 10 phút, tớ sẽ nhắc.',
+    addDistraction: '+ Thêm thứ xao nhãng', distractionPh: 'youtube, reddit, trò chơi…',
     sources: { onboarding: 'khi mới làm quen', conversation: 'khi trò chuyện', carnet: 'thêm ở đây' },
     forget: 'Quên hết',
     forgetConfirm: 'Gilbert sẽ quên hết về cậu (hồ sơ, người thân, kỷ niệm). Không thể hoàn tác. Tiếp tục chứ?',
@@ -106,8 +116,7 @@ function save() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     api.save(memory);
-    status.textContent = t.saved;
-    setTimeout(() => { status.textContent = ''; }, 1500);
+    saved();
   }, 400);
 }
 
@@ -153,6 +162,23 @@ function render() {
   });
   people.append(addPerson);
   sections.push(people);
+
+  // distractions : de quoi te rappeler à l'ordre pendant une session de travail
+  memory.distractions ??= [];
+  const distractions = h('section', {}, h('h2', { title: t.distractionsHint }, t.distractions));
+  memory.distractions.forEach((d, i) => {
+    const remove = h('button', { className: 'remove', title: t.remove, textContent: '×' });
+    remove.addEventListener('click', () => { memory.distractions.splice(i, 1); save(); render(); });
+    distractions.append(h('div', { className: 'row fact' }, input(d, (v) => { memory.distractions[i] = v; }, t.distractionPh), remove));
+  });
+  const addDistraction = h('button', { className: 'ghost', textContent: t.addDistraction, title: t.distractionsHint });
+  addDistraction.addEventListener('click', () => {
+    memory.distractions.push('');
+    render();
+    (app.querySelector('section:nth-of-type(4) .row.fact:last-of-type input') as HTMLInputElement | null)?.focus();
+  });
+  distractions.append(addDistraction);
+  sections.push(distractions);
 
   // souvenirs
   const facts = h('section', {}, h('h2', {}, t.facts));

@@ -113,6 +113,31 @@ async function ejectInstaller() {
 }
 
 /**
+ * Met une appli prête (dans un dossier local) à la place de celle du bureau : l'ancienne est mise de côté
+ * (puis effacée en arrière-plan), la nouvelle prend l'icône de poubelle, et se lance une fois celle-ci partie.
+ */
+export function swapIntoDesktop(fresh: string) {
+  // (mise de côté dans le même dossier : un renommage est instantané, alors que la sortir d'iCloud prend des minutes)
+  const old = path.join(app.getPath('desktop'), `.Gilbert-old-${process.pid}`);
+  // copiée à la main, elle ne doit pas rester « téléchargée » (sinon macOS la ré-examine)
+  execFileSync('xattr', ['-dr', 'com.apple.quarantine', fresh], { timeout: 30_000 });
+  execFileSync('osascript', ['-l', 'JavaScript', '-e', `ObjC.import('AppKit');
+    $.NSWorkspace.sharedWorkspace.setIconForFileOptions($.NSImage.alloc.initWithContentsOfFile(${JSON.stringify(binIcon('png'))}), ${JSON.stringify(fresh)}, 0);`], { timeout: 10_000 });
+  if (existsSync(deskApp())) execFileSync('mv', [deskApp(), old], { timeout: 60_000 });
+  execFileSync('rm', ['-f', path.join(app.getPath('desktop'), 'Gilbert')], { timeout: 20_000 });
+  try {
+    execFileSync('mv', [fresh, deskApp()], { timeout: 120_000 });
+  } catch (e) {
+    // la nouvelle n'a pas pu entrer : on remet l'ancienne
+    if (existsSync(old) && !existsSync(deskApp())) execFileSync('mv', [old, deskApp()], { timeout: 60_000 });
+    throw e;
+  }
+  spawn('rm', ['-rf', old], { detached: true, stdio: 'ignore' }).unref();
+  // relancée une fois celle-ci partie (une seule instance à la fois)
+  spawn('sh', ['-c', `sleep 1.5; open -n ${JSON.stringify(deskApp())} --args ${FRESH}`], { detached: true, stdio: 'ignore' }).unref();
+}
+
+/**
  * Tout premier geste, avant même d'ouvrir une fenêtre : ouverte ailleurs que sur le bureau (depuis
  * l'installeur), l'appli s'y copie, y prend l'icône de poubelle et s'y relance. Renvoie true si c'est
  * parti : le processus actuel doit alors s'effacer sans rien démarrer.
@@ -124,20 +149,9 @@ export function moveToDesktop() {
     // minutes. On prépare donc la nouvelle appli dans un dossier local (rapide), puis on l'y place d'un coup (un
     // simple renommage) ; l'ancienne est mise de côté, et effacée en arrière-plan.
     const fresh = path.join(app.getPath('temp'), `Gilbert-new-${process.pid}.app`);
-    // (mise de côté dans le même dossier : un renommage est instantané, alors que la sortir d'iCloud prend des minutes)
-    const old = path.join(app.getPath('desktop'), `.Gilbert-old-${process.pid}`);
     rmSync(fresh, { recursive: true, force: true });
     execFileSync('ditto', [bundle(), fresh], { timeout: 180_000 });
-    // copiée à la main, elle ne doit pas rester « téléchargée » (sinon macOS la ré-examine)
-    execFileSync('xattr', ['-dr', 'com.apple.quarantine', fresh], { timeout: 30_000 });
-    execFileSync('osascript', ['-l', 'JavaScript', '-e', `ObjC.import('AppKit');
-      $.NSWorkspace.sharedWorkspace.setIconForFileOptions($.NSImage.alloc.initWithContentsOfFile(${JSON.stringify(binIcon('png'))}), ${JSON.stringify(fresh)}, 0);`], { timeout: 10_000 });
-    if (existsSync(deskApp())) execFileSync('mv', [deskApp(), old], { timeout: 60_000 });
-    execFileSync('rm', ['-f', path.join(app.getPath('desktop'), 'Gilbert')], { timeout: 20_000 });
-    execFileSync('mv', [fresh, deskApp()], { timeout: 120_000 });
-    spawn('rm', ['-rf', old], { detached: true, stdio: 'ignore' }).unref();
-    // relancée une fois celle-ci partie (une seule instance à la fois)
-    spawn('sh', ['-c', `sleep 1.5; open -n ${JSON.stringify(deskApp())} --args ${FRESH}`], { detached: true, stdio: 'ignore' }).unref();
+    swapIntoDesktop(fresh);
     note('copiée sur le bureau');
     return true;
   } catch (e) {

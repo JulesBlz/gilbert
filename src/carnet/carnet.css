@@ -85,3 +85,7 @@ button.remove:hover { color: var(--danger); }
 
 /* questions du carnet : deux colonnes quand il y a la place */
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+
+/* boutons nus : la croix de fermeture et les « × » */
+button.close, button.remove { box-shadow: none; }
+button.close:hover, button.remove:hover { background: transparent; box-shadow: none; }

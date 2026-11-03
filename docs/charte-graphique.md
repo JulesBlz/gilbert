@@ -51,7 +51,7 @@ pages) : une seule taille de texte, aucune mesure impaire, aucun angle arrondi, 
 - Icônes : [Pixelarticons](https://pixelarticons.com) (MIT), variantes « sharp », à 24 px (un multiple de 24 reste net).
 
 - Champs : contour de 2 px, orange sombre et plus épais (4 px) au focus.
-- La même ombre dure sur tous les blocs (4 px), et sur ce qu'on survole.
+- Relief : voir « Design v2 » plus bas (filet de 2 px et ombre courte sur les cartes ; l’ombre dure de 4 px reste aux repères et aux boutons orange).
 - Titres de bloc avec un repère carré orange.
 - Onglets : un rail vertical sombre à gauche, icônes 16 × 16 avec leur nom dessous ; l'onglet ouvert s'allume en
   orange. En bas du rail : les glands (toujours visibles, avec un bouton vers la boutique) et l'engrenage
@@ -63,3 +63,18 @@ pages) : une seule taille de texte, aucune mesure impaire, aucun angle arrondi, 
 ## Moins de texte
 
 Le design guide avant le texte : les explications se lisent au survol (`title`) ou se déplient (« Comment faire ? »).
+
+## Design v2 (surfaces, boutons, sombre, raccourcis)
+
+- **Trois niveaux de surface** : le fond de la page (`--bg`), les cartes (`--card`), les champs (`--white`). Chaque page a **une carte « héros »** teintée (`--hero`, filet `--hero-edge`) : la journée (Tableau de bord), « Aujourd'hui » (Journal), « Où j'en suis » (Projets), la vitrine (Boutique), la première carte du Guide, du Carnet et des Connexions.
+- **Cartes légères** : un filet de 2 px (`--line`) et une ombre courte (2 px) ; plus de contour noir ni d'ombre de 4 px. Les champs ont un contour de 2 px (`--edge`), orange sombre au focus.
+- **Une règle de boutons** : un seul bouton orange (`primary`) par carte, c'est l'action ; les autres sont creux (contour discret `--edge`, noir au survol) ; rouge pour supprimer ; le plein sombre n'existe que pour l'état « choisi » (`.seg .on`, `.tag.on`). Les boutons d'icône ou de liste n'ont jamais de contour.
+- **Rythme** : 8, 16, 24 px (`--sp-2`, `--sp-4`, `--sp-5`), 4 et 12 px pour l'ajustement fin ; la grille reste de 2 px.
+- **Sombre** : `:root[data-theme="dark"]` redéfinit les mêmes rôles (`--ink` devient le crème clair, `--bg` le brun profond…) ; le rail (`--rail`), l'orange et le texte sur l'orange (`--on-accent`) ne changent pas ; `--drop` donne l'ombre franche. Le réglage **Apparence** (Réglages) : comme le système, clair ou sombre ; `shared/theme-apply.ts` pose l'attribut dans le menu et sur le bureau (bulle de Gilbert comprise). Les dessins SVG en données (coche, queues de bulle) ont leur variante sombre.
+- **Mouvement** : une page se pose par paliers de 2 px (jamais invisible) ; rien du tout en mouvement réduit.
+- **Retours** : une pastille « Enregistré » (`settings/saved.ts`) après chaque réglage, fiche projet ou carnet modifié.
+- **États vides** : une phrase et la première action (créer un premier projet, activer le carnet de bord, lancer une session).
+- **Raccourcis** (menu) : ⌘1…7 les pages, ⌘8 Connexions, ⌘, Réglages, ⌘N nouvelle discussion (ou nouveau projet depuis Projets), ⌘K recherche rapide (pages, projets, discussions, actions) ; Échap ferme la recherche, puis la fenêtre. Ctrl à la place de ⌘ sous Windows.
+- **Déplacer et redimensionner** : on tire la fenêtre par son titre ou le haut du rail ; des poignées de 16 px (bord droit, bord bas) et de 32 px (angle, avec son repère) la redimensionnent ; pas de barre de défilement dans le menu. Le liseré de la fenêtre reste sombre en mode sombre.
+- **Fenêtre redimensionnable** (Mac) : 620 × 520 au minimum ; les grilles (boutique, guide, tuiles, champs en deux colonnes) se réarrangent ; Gilbert suit le bord de la fenêtre.
+- **Tableau de bord** : la carte « Ta journée » réunit rendez-vous, mails en attente et projets qui pressent (échéances proches ou passées, réponses attendues) ; une ligne de projet ouvre sa fiche.

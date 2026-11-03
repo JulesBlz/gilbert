@@ -5,7 +5,8 @@
 // - une échéance ou un rendez-vous approche et tu es depuis 8 min sur YouTube, Netflix, un réseau
 //   social… → il te rappelle gentiment à l'ordre (de moins en moins gentiment s'il insiste).
 // Il ne regarde que quand tu es devant l'écran, jamais les gestionnaires de mots de passe ni ses
-// propres fenêtres, et ne garde rien : ni image, ni texte.
+// propres fenêtres, et ne garde rien : ni image, ni texte (sauf, si une fiche projet est concernée, une
+// ligne utile ou une chose à ne pas oublier, notée dans la fiche : voir main.ts, lookAtScreen).
 
 import { screen, type BrowserWindow } from 'electron';
 import { confirmTypo, detectProblem, normalize, worthSaying } from '../brain/detect';
@@ -56,6 +57,8 @@ export class ScreenWatcher {
     profile?: () => { procrastination: string; motivation: string };
     /** Ce qui presse : la prochaine échéance ou le prochain rendez-vous, s'il est proche */
     pressure: () => { what: string; minutes: number } | null;
+    /** Ce qu'il lit à l'écran (pour retrouver les projets suivis) : rien n'est gardé ici */
+    onScreen?: (w: { app: string; title: string; text: string }) => void;
     /** Début ou fin d'une visio / présentation */
     onMeeting: (on: boolean) => void;
   }) {
@@ -176,6 +179,7 @@ export class ScreenWatcher {
       // rien n'a vraiment changé depuis la dernière fois
       if (similarity(text, this.lastText) > 0.9) return;
       this.lastText = text;
+      this.deps.onScreen?.({ app: w.app, title: w.title, text });
 
       const d = await detectProblem(this.deps.brain, { app: w.app, title: w.title, text }, this.deps.lang());
       if (!d || this.deps.userIdle() > ACTIVE_WITHIN) return;

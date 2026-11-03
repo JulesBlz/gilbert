@@ -8,9 +8,10 @@ import type { SettingsTab } from '../shared/types';
 
 const windows = new Map<string, BrowserWindow>();
 /** Prévenu quand une fenêtre s'affiche (avec sa place à l'écran) ou se ferme (null) */
-const watchers = new Map<string, (bounds: Electron.Rectangle | null) => void>();
+const watchers = new Map<string, (bounds: Electron.Rectangle | null, follow?: boolean) => void>();
 
-export const onPageWindow = (key: string, cb: (bounds: Electron.Rectangle | null) => void) => watchers.set(key, cb);
+/** `follow` : la fenêtre bouge ou change de taille (Gilbert la suit sans sauter) ; sinon elle s'ouvre ou se ferme */
+export const onPageWindow = (key: string, cb: (bounds: Electron.Rectangle | null, follow?: boolean) => void) => watchers.set(key, cb);
 
 export const pageWindow = (key: string) => {
   const w = windows.get(key);
@@ -40,7 +41,12 @@ function openPage(key: string, title: string, size: { width: number; height: num
     transparent: true,
     backgroundColor: '#00000000',
     hasShadow: false,
-    resizable: false,
+    // redimensionnable (sur Mac ; sous Windows une fenêtre transparente ne l'est pas) : la page se réarrange
+    resizable: true,
+    minWidth: Math.min(620, width),
+    minHeight: Math.min(520, height),
+    maxWidth: area.width - 40,
+    maxHeight: area.height - 160,
     movable: true,
     minimizable: false,
     maximizable: false,
@@ -66,8 +72,19 @@ function openPage(key: string, title: string, size: { width: number; height: num
     app.focus({ steal: true });
   });
   win.once('show', () => watchers.get(key)?.(win.getBounds()));
-  // on la déplace : Gilbert la suit une fois qu'on l'a lâchée
-  win.on('moved', () => watchers.get(key)?.(win.getBounds()));
+  // on la déplace ou on la redimensionne : Gilbert la suit en direct, sans sauter (au plus toutes les 40 ms)
+  let last = 0;
+  let trailing: NodeJS.Timeout | null = null;
+  const follow = () => {
+    if (win.isDestroyed()) return;
+    const wait = 40 - (Date.now() - last);
+    if (trailing) clearTimeout(trailing);
+    const go = () => { trailing = null; last = Date.now(); if (!win.isDestroyed()) watchers.get(key)?.(win.getBounds(), true); };
+    if (wait <= 0) go(); else trailing = setTimeout(go, wait);
+  };
+  win.on('move', follow);
+  win.on('moved', follow);
+  win.on('resize', follow);
   win.on('closed', () => {
     windows.delete(key);
     watchers.get(key)?.(null);

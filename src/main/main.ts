@@ -2,7 +2,7 @@
 // traversée par la souris partout sauf sur Gilbert, plus une icône de barre des menus.
 
 import {
-  app, BrowserWindow, ipcMain, Menu, Tray, screen, powerMonitor, nativeImage, shell, session, systemPreferences,
+  app, BrowserWindow, clipboard, ipcMain, Menu, Tray, screen, powerMonitor, nativeImage, shell, session, systemPreferences,
   type MenuItemConstructorOptions,
 } from 'electron';
 import path from 'node:path';
@@ -26,19 +26,23 @@ import { Focus, FOCUS_START } from './focus';
 import { frontWindow } from './vision/capture';
 import { ClipboardHelper } from './clipboard';
 import { MessageBadges } from './messages';
-import { FRESH, desktopHome, finishInstall, moveToDesktop, setHomeIcon } from './desktop';
-import { itemById } from '../shared/skins';
+import { FRESH, desktopHome, desktopSupported, finishInstall, moveToDesktop, setHomeIcon } from './desktop';
+import { ProjectStore, type Sources } from './projects';
+import { projectIdea, projectReport, screenInsight } from './brain/projects';
+import { checkForUpdate, download, install, type Update } from './updater';
+import { itemById, RETIRED } from '../shared/skins';
 import { splitTask, todoDone, todoSplit, todoToAdd } from './todo';
 import { transcribe } from './voice';
 import { FOLDER, Tidy } from './tidy';
 import { friendship, Mood } from './mood';
-import { LOCALE, SPEAK, type BrainChoice, type BrainEvent, type Lang, type BrainStatus, type Command, type Humor, type MailSettings, type Memory, type PrefsAction, type PrefsState, type Settings, type Task, type SettingsTab } from '../shared/types';
+import { LOCALE, SPEAK, type BrainChoice, type BrainEvent, type Lang, type BrainStatus, type Command, type Humor, type MailSettings, type Memory, type PrefsAction, type PrefsState, type Settings, type Task, type SettingsTab, type ProjectOp } from '../shared/types';
 
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let settings: Settings;
 let brain: Brain;
 let memory: MemoryStore;
+let projects: ProjectStore;
 let assistant: Assistant;
 let watcher: ScreenWatcher;
 const music = new Music();
@@ -225,6 +229,28 @@ function offerGuide() {
 // ---------- carnet de bord ----------
 
 /** Chaque minute où tu es devant l'écran : l'appli au premier plan est notée dans le carnet */
+/** Pendant une session de travail : dix minutes sur un site ou une appli de ta liste de distractions, et il te le dit */
+function startDistractionWatch() {
+  let ticks = 0, quietUntil = 0;
+  setInterval(async () => {
+    const list = memory.data.distractions;
+    if (!focus?.active || !list.length || powerMonitor.getSystemIdleTime() > 60) { ticks = 0; return; }
+    const w = await frontWindow();
+    const hay = w && w.pid !== process.pid ? `${w.app} ${w.title}`.toLowerCase() : '';
+    const hit = hay && list.find((d) => hay.includes(d.toLowerCase()));
+    if (!hit) { ticks = 0; return; }
+    if (++ticks < 20 || Date.now() < quietUntil) return;
+    ticks = 0;
+    quietUntil = Date.now() + 15 * 60_000;
+    assistant.tell(
+      say3(`Ça fait 10 minutes sur « ${hit} » pendant ta session. On s'y remet, ou on arrête là ?`, `That's 10 minutes on "${hit}" during your session. Back to work, or stop here?`, `Đã 10 phút trên « ${hit} » trong lúc làm việc. Làm tiếp hay dừng ở đây?`),
+      [{ label: say3('On s’y remet', 'Back to work', 'Làm tiếp'), value: 'go' }, { label: say3('J’arrête la session', 'End the session', 'Dừng phiên'), value: 'stop' }],
+      (v) => { if (v === 'stop') focus.stop(); },
+      true,
+    );
+  }, 30_000);
+}
+
 function startJournal() {
   setInterval(async () => {
     if (!settings.journal || powerMonitor.getSystemIdleTime() > 60) return;
@@ -498,6 +524,16 @@ ipcMain.on('intro:done', (_e, answers: Partial<Memory['profile']>) => memory.fin
 ipcMain.on('settings:open', (_e, tab?: SettingsTab) => openSettings(tab ?? 'home'));
 ipcMain.handle('prefs:get', () => prefsState());
 ipcMain.handle('journal:get', () => journal.data);
+ipcMain.on('prefs:resize', (e, width: number, height: number) => {
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w && !w.isDestroyed()) w.setSize(Math.round(width), Math.round(height));
+});
+ipcMain.on('prefs:move', (e, x: number, y: number) => {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w && !w.isDestroyed()) w.setPosition(Math.round(x), Math.round(y));
+});
 ipcMain.on('prefs:set', (_e, patch: Partial<Settings>) => {
   // la vision passe par sa propre mise en route (permission, message de Gilbert)
   const { vision, ...rest } = patch;
@@ -585,6 +621,105 @@ ipcMain.on('connections:open', (_e, url: string) => { if (/^https:\/\//.test(url
 ipcMain.on('notify:answer', (_e, id: string, value: string) => { if (!clip?.answer(id, value)) assistant.answer(id, value); });
 ipcMain.on('carnet:save', (_e, m: Memory) => memory.replace(m));
 ipcMain.on('carnet:forget', () => memory.forgetAll());
+
+// ---------- les projets ----------
+
+const projectSources = (): Sources => ({ mails: assistant.mailbox.mails, events: assistant.calendar.events, lang: settings.lang });
+ipcMain.handle('projects:get', () => ({
+  projects: projects.views(projectSources()),
+  categories: [...new Set(projects.projects.map((p) => p.category).filter(Boolean))],
+  lang: settings.lang,
+}));
+ipcMain.on('projects:act', (_e, op: ProjectOp) => {
+  switch (op?.type) {
+    case 'add': projects.add(String(op.name ?? ''), String(op.category ?? ''), String(op.keywords ?? ''), String(op.description ?? '')); break;
+    case 'edit': projects.edit(String(op.id), op.patch ?? {}); break;
+    case 'remove': projects.remove(String(op.id)); break;
+    case 'report': void writeReport(String(op.id), true); break;
+    case 'todoAdd': projects.addTodo(String(op.id), String(op.text ?? ''), String(op.due ?? '')); break;
+    case 'todoEdit': projects.editTodo(String(op.id), String(op.todoId), op.patch ?? {}); break;
+    case 'todoRemove': projects.removeTodo(String(op.id), String(op.todoId)); break;
+    case 'noteRemove': projects.removeNote(String(op.id), String(op.noteId)); break;
+    case 'dismiss': projects.dismiss(String(op.adviceId)); break;
+    case 'draft': void draftFor(String(op.id), String(op.adviceId)); break;
+  }
+});
+
+/** Le rapport d'avancement est réécrit par Gilbert, tant que tu n'y as pas touché (ou si tu le lui demandes) */
+const reportTimers = new Map<string, NodeJS.Timeout>();
+function scheduleReport(id: string) {
+  clearTimeout(reportTimers.get(id));
+  reportTimers.set(id, setTimeout(() => { reportTimers.delete(id); void writeReport(id, false); }, 30_000));
+}
+async function writeReport(id: string, asked: boolean) {
+  const p = projects.get(id);
+  if (!p || (!asked && !p.progressAuto) || brain.status.state !== 'ready') return;
+  const text = await projectReport(brain, p, settings.lang).catch(() => null);
+  if (text) projects.setReport(id, text);
+}
+
+/** Un mail important qui ne ressemble à aucune fiche : si le même sujet revient, il propose d'en créer une */
+async function suggestProject(m: { from: string; subject: string; date: number }, summary: string) {
+  if (brain.status.state !== 'ready') return;
+  const idea = await projectIdea(brain, { from: m.from, subject: m.subject, summary }, settings.lang).catch(() => null);
+  if (!idea) return;
+  const hit = projects.idea(idea.name, idea.keywords, { text: `${m.from} : ${summary}`, at: m.date });
+  if (!hit) return;
+  projects.markIdea(hit.key, 'asked');
+  assistant.tell(
+    say3(`Je vois revenir des mails sur « ${hit.idea.name} ». Je crée une fiche projet ?`, `I keep seeing emails about "${hit.idea.name}". Shall I create a project sheet?`, `Tớ thấy nhiều email về « ${hit.idea.name} ». Tạo hồ sơ dự án nhé?`),
+    [{ label: say3('Créer la fiche', 'Create it', 'Tạo hồ sơ'), value: 'yes' }, { label: say3('Non merci', 'No thanks', 'Thôi khỏi'), value: 'no' }],
+    (v) => {
+      if (v === 'yes') {
+        const p = projects.createFromIdea(hit.key);
+        if (p) assistant.tell(say3(`C'est fait : « ${p.name} » est dans l'onglet Projets.`, `Done: "${p.name}" is in the Projects tab.`, `Xong: « ${p.name} » đã có trong tab Dự án.`));
+      } else projects.markIdea(hit.key, 'declined');
+    },
+  );
+}
+
+/** Ce que Gilbert voit à l'écran : si cela concerne un projet suivi, c'est noté (au plus une fois par quart d'heure et par projet) */
+const lastLook = new Map<string, number>();
+async function lookAtScreen(w: { app: string; title: string; text: string }) {
+  if (!settings.projectScreen) return;
+  for (const p of projects.about(`${w.app} ${w.title} ${w.text.slice(0, 1500)}`).slice(0, 1)) {
+    projects.touch(p.id);
+    if (Date.now() - (lastLook.get(p.id) ?? 0) < 15 * 60_000 || brain.status.state !== 'ready') continue;
+    lastLook.set(p.id, Date.now());
+    const r = await screenInsight(brain, p, w, settings.lang).catch(() => null);
+    if (!r) continue;
+    if (r.info.length >= 12) projects.addNote(p.id, r.info, 'screen');
+    if (r.todo.length >= 6) projects.addTodo(p.id, r.todo, r.date, true);
+  }
+}
+
+/** Rédige le brouillon d'une recommandation (réponse ou relance) et le copie, prêt à coller dans le mail */
+async function draftFor(id: string, adviceId: string) {
+  const p = projects.get(id);
+  if (!p) return;
+  const src = projectSources();
+  const mail = projects.mailFor(adviceId, p, src);
+  if (brain.status.state !== 'ready') {
+    assistant.tell(say3('Mon cerveau n’est pas prêt : je ne peux pas rédiger ça pour l’instant.', 'My brain isn’t ready: I can’t draft that right now.', 'Bộ não chưa sẵn sàng nên tớ chưa soạn được.'));
+    return;
+  }
+  const fr = settings.lang === 'fr';
+  const who = mail?.from ?? '';
+  const task = (fr
+    ? [`Rédige un court mail (3 à 5 phrases, poli, direct, sans objet ni formule de politesse longue) de la part de ton humain, ${adviceId.startsWith('reply:') ? 'pour répondre' : 'pour relancer'}${who ? ` à ${who}` : ''}, à propos du projet « ${p.name} ».`,
+      mail ? `Dernier mail reçu : ${mail.summary || mail.subject}` : '', p.progress ? `Où en est le projet : ${p.progress}` : '',
+      ...p.notes.slice(0, 3).map((n) => `Note : ${n.text}`), 'N’invente aucun fait, aucune date, aucun chiffre ; laisse [à compléter] si une information manque. Écris uniquement le texte du mail.']
+    : [`Write a short email (3 to 5 sentences, polite, direct, no subject line, no long sign-off) on behalf of your human, ${adviceId.startsWith('reply:') ? 'replying' : 'following up'}${who ? ` to ${who}` : ''}, about the project "${p.name}".`,
+      mail ? `Last email received: ${mail.summary || mail.subject}` : '', p.progress ? `Project status: ${p.progress}` : '',
+      ...p.notes.slice(0, 3).map((n) => `Note: ${n.text}`), 'Do not invent any fact, date or number; write [to complete] if something is missing. Write only the email text.']).filter(Boolean).join('\n');
+  const text = await brain.compose(task, 260);
+  if (!text) {
+    assistant.tell(say3('Je n’ai pas réussi à rédiger ça, désolé.', 'I couldn’t write that, sorry.', 'Tớ soạn không được, xin lỗi.'));
+    return;
+  }
+  clipboard.writeText(text.trim());
+  assistant.tell(say3(`Brouillon copié pour « ${p.name} » : relis-le, puis colle-le dans ton mail.`, `Draft copied for "${p.name}": read it over, then paste it into your email.`, `Đã chép bản nháp cho « ${p.name} »: đọc lại rồi dán vào email nhé.`));
+}
 ipcMain.on('brain:download', () => brain.download());
 ipcMain.on('brain:cancel', (_e, id: number) => brain.cancel(id));
 ipcMain.on('brain:ask', (_e, id: number, text: string) => {
@@ -592,6 +727,12 @@ ipcMain.on('brain:ask', (_e, id: number, text: string) => {
 });
 
 /** Répond à ce que tu écris, dans la bulle ou dans une discussion longue : `emit` reçoit les morceaux puis la réponse */
+/** « note pour Alpha : appeler le client lundi » */
+const PROJECT_NOTE = /^\s*(?:gilbert[\s,]*)?(?:note|ajoute(?: une note)?|retiens)\s+(?:pour|sur|dans|for|on|to)\s+(?:le projet\s+|la fiche\s+|project\s+)?(.{2,60}?)\s*:\s*(.{3,})$/i;
+
+/** « crée un projet Alpha » */
+const PROJECT_NEW = /^\s*(?:gilbert[\s,]*)?(?:cr[ée]{1,2}e?s?|ajoute|nouveau|create|add|new)\s+(?:un\s+|une\s+|a\s+)?(?:nouveau\s+)?(?:projet|project)\s+(?:nomm[ée]\s+|appel[ée]\s+|called\s+|named\s+)?[«"]?(.{2,60}?)[»"]?\s*$/i;
+
 async function answer(id: number, text: string, emit: (ev: BrainEvent) => void, opts: { history?: { role: 'user' | 'gilbert'; text: string }[]; long?: boolean } = {}) {
   try {
     markTried('chat');
@@ -633,6 +774,25 @@ async function answer(id: number, text: string, emit: (ev: BrainEvent) => void, 
       emit({ id, kind: 'done', text: say3(`Bien joué ! Je coche « ${task.title} ».`, `Nice one! Ticking off "${task.title}".`, `Giỏi lắm! Tớ đánh dấu « ${task.title} » rồi.`) });
       return;
     }
+    // « crée un projet Alpha » : une fiche, tout de suite
+    const np = text.match(PROJECT_NEW);
+    if (np) {
+      const p = projects.find(np[1]) ?? projects.add(np[1], '', '', '');
+      emit({ id, kind: 'done', text: p
+        ? say3(`C'est fait : la fiche « ${p.name} » est dans l'onglet Projets. Ajoute-y ses mots-clés et une description.`, `Done: the "${p.name}" sheet is in the Projects tab. Add its keywords and a description there.`, `Xong: hồ sơ « ${p.name} » đã có trong tab Dự án. Hãy thêm từ khóa và mô tả.`)
+        : say3('Je n’ai pas pu créer cette fiche.', 'I couldn’t create that sheet.', 'Tớ không tạo được hồ sơ này.') });
+      return;
+    }
+    // « note pour Alpha : … » : une note dans la fiche du projet
+    const pn = text.match(PROJECT_NOTE);
+    if (pn) {
+      const p = projects.find(pn[1]);
+      if (p) projects.addNote(p.id, pn[2], 'chat');
+      emit({ id, kind: 'done', text: p
+        ? say3(`Noté dans la fiche « ${p.name} ».`, `Added to the "${p.name}" sheet.`, `Đã ghi vào hồ sơ « ${p.name} ».`)
+        : say3(`Je ne trouve pas de projet « ${pn[1]} » : crée sa fiche dans l’onglet Projets.`, `I can't find a project "${pn[1]}": create its sheet in the Projects tab.`, `Tớ không thấy dự án « ${pn[1]} »: hãy tạo hồ sơ trong tab Dự án.`) });
+      return;
+    }
     // « rappelle-moi… » : un rappel, noté tout de suite, sans bavardage
     if (REMIND.test(text)) {
       const r = await parseReminder(brain, text, settings.lang);
@@ -651,6 +811,11 @@ async function answer(id: number, text: string, emit: (ev: BrainEvent) => void, 
       const found = query ? assistant.mailbox.search(query, 3) : [];
       if (found.length) markTried('mail');
       if (found.length) prompt = `${mailContext(found, settings.lang)}\n\n${settings.lang === 'fr' ? 'Sa question' : 'Their question'} : ${text}`;
+    }
+    // une question sur un projet suivi : sa fiche accompagne la question
+    if (prompt === text) {
+      const mentioned = projects.about(text).slice(0, 2);
+      if (mentioned.length) prompt = `${mentioned.map((p) => projects.context(p, projectSources(), settings.lang)).join('\n\n')}\n\n${settings.lang === 'fr' ? 'Sa question' : 'Their question'} : ${text}`;
     }
     // internet : sur demande (« cherche… »), ou quand la question sort de ce qu'il sait (actualité, faits récents)
     let sources: WebResult[] = [];
@@ -703,6 +868,42 @@ ipcMain.on('chat:send', async (_e, chatId: string, text: string) => {
   chatAsks.delete(chatId);
 });
 
+// ---------- mises à jour ----------
+
+let offeredVersion = '';
+let updating = false;
+
+/** Télécharge, vérifie et installe la version proposée, puis passe la main à la nouvelle */
+async function applyUpdate(u: Update) {
+  updating = true;
+  try {
+    const zip = await download(u, (pct) => send({ type: 'offer', id: 'update-download', text: say3(`Je télécharge ma nouvelle version : ${pct} %`, `Downloading my new version: ${pct}%`, `Tớ đang tải bản mới: ${pct} %`), actions: [], ttl: 8000 }));
+    send({ type: 'offer', id: 'update-install', text: say3('Je m’installe… je reviens tout de suite.', 'Installing myself… back in a moment.', 'Tớ đang cài… quay lại ngay.'), actions: [], ttl: 20_000 });
+    install(u, zip);
+    saveSettings(settings, true);
+    journal.flush();
+    app.exit(0);
+  } catch (e) {
+    updating = false;
+    assistant.tell(say3('Ma mise à jour a échoué, je reste comme je suis. Je réessaierai plus tard.', 'My update failed, so I stay as I am. I’ll try again later.', 'Cập nhật không thành công, tớ giữ nguyên. Lát nữa tớ thử lại.'));
+    console.error('update:', e instanceof Error ? e.message : e);
+  }
+}
+
+/** Une nouvelle version publiée sur GitHub ? On le propose (une fois par lancement et par version) */
+async function lookForUpdate() {
+  if (!settings.updates || updating || !desktopSupported()) return;
+  const u = await checkForUpdate().catch(() => null);
+  if (!u || offeredVersion === u.version) return;
+  offeredVersion = u.version;
+  assistant.tell(
+    say3(`Une nouvelle version de moi est prête (${u.version}). Je me mets à jour ?`, `A new version of me is ready (${u.version}). Update now?`, `Có bản mới của tớ (${u.version}). Cập nhật nhé?`),
+    [{ label: say3('Mettre à jour', 'Update', 'Cập nhật'), value: 'yes' }, { label: say3('Plus tard', 'Later', 'Để sau'), value: 'no' }],
+    (v) => { if (v === 'yes') void applyUpdate(u); },
+    true,
+  );
+}
+
 // ---------- démarrage ----------
 
 if (!app.requestSingleInstanceLock()) {
@@ -732,8 +933,18 @@ if (!app.requestSingleInstanceLock()) {
     if (settings.quietUntil && !isQuiet()) settings.quietUntil = 0;
     app.dock?.hide();
     memory = new MemoryStore();
+    projects = new ProjectStore();
+    projects.on('change', () => pageWindow('settings')?.webContents.send('projects:change'));
+    // une info neuve : le rapport est réécrit un peu après (une seule fois pour plusieurs infos d'affilée)
+    projects.on('fresh', (id: string) => scheduleReport(id));
     mood = new Mood();
     journal = new Journal();
+    // les objets retirés de la boutique : on les range et on rend leur prix
+    const gone = settings.owned.filter((id) => id in RETIRED);
+    if (gone.length) {
+      for (const id of gone) journal.refund(RETIRED[id]);
+      update({ owned: settings.owned.filter((id) => !(id in RETIRED)), skin: { fur: settings.skin.fur in RETIRED ? 'gray' : settings.skin.fur, accessory: settings.skin.accessory in RETIRED ? '' : settings.skin.accessory } });
+    }
     chats = new ChatStore();
     journal.on('rain', (acorns: number) => send({ type: 'rain', acorns }));
     journal.on('change', (d) => {
@@ -756,6 +967,28 @@ if (!app.requestSingleInstanceLock()) {
       userIdle: () => powerMonitor.getSystemIdleTime(),
       focusing: () => Boolean(focus?.active),
       onImportantMail: () => { if (settings.journal) journal.count('mails'); },
+      onMailTriaged: (m, summary, important, needsReply, deadline) => {
+        const matched = projects.noteFromMail(m, summary, important, needsReply, deadline);
+        if (!matched && (important || needsReply) && settings.projectIdeas) void suggestProject(m, summary);
+      },
+      projectTick: () => {
+        const out: { text: string; fact: string; urgent: boolean }[] = [...projects.reminders(settings.lang)];
+        const digest = projects.digest(projectSources());
+        if (digest) out.push({ text: digest, fact: digest, urgent: false });
+        return out;
+      },
+      projectBrief: (title) => projects.brief(title, settings.lang),
+      projectsToday: () => {
+        const day = new Date().toLocaleDateString('sv'), soon = new Date(Date.now() + 3 * 86_400_000).toLocaleDateString('sv');
+        const out: { id: string; name: string; text: string; due: string; late: boolean }[] = [];
+        for (const v of projects.views(projectSources())) {
+          const p = v.project;
+          if (p.status === 'done') continue;
+          for (const td of p.todos) if (!td.done && td.due && td.due <= soon) out.push({ id: p.id, name: p.name, text: td.text, due: td.due, late: td.due < day });
+          for (const a of v.advice.filter((x) => x.kind === 'reply')) out.push({ id: p.id, name: p.name, text: a.text, due: '', late: false });
+        }
+        return out.sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 6);
+      },
       focusToday: () => journal.day().focus,
       moodLine: () => (settings.moods ? mood.line(settings.lang) : ''),
       used: markTried,
@@ -806,6 +1039,7 @@ if (!app.requestSingleInstanceLock()) {
       say: (text, evenIdle) => assistant.tell(text, undefined, undefined, evenIdle),
       pressure: () => assistant.pressure(),
       profile: () => memory.data.profile,
+      onScreen: (w) => { void lookAtScreen(w); },
       onMeeting: (on) => {
         meeting = on;
         send({ type: 'meeting', on });
@@ -818,13 +1052,26 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media' && wc === win?.webContents);
     createWindow();
     createTray();
+    // une nouvelle version ? (un peu après le démarrage, puis toutes les 6 h)
+    setTimeout(() => void lookForUpdate(), 45_000);
+    setInterval(() => void lookForUpdate(), 6 * 3600_000);
     // sa fenêtre s'ouvre : il saute s'asseoir sur son bord du haut (le panneau est à 6 px du bord
     // de la fenêtre, et sa bordure pixel déborde de 3 px)
-    onPageWindow('settings', (b) => {
+    // on déplace ou on redimensionne sa fenêtre : il redescend (une seule fois) et ne remonte qu'une fois qu'on l'a lâchée
+    let settled: NodeJS.Timeout | null = null;
+    let moving = false;
+    onPageWindow('settings', (b, follow) => {
       // tant que sa fenêtre est ouverte, Gilbert (et ses bulles) passent au-dessus d'elle
       win?.setAlwaysOnTop(true, b ? 'pop-up-menu' : 'floating');
       settingsBounds = b;
       if (!b) settingsTab = 'home';
+      if (settled) { clearTimeout(settled); settled = null; }
+      if (follow && b) {
+        if (!moving) { moving = true; send({ type: 'perch', at: null }); }
+        settled = setTimeout(() => { settled = null; moving = false; perchOnSettings(); }, 450);
+        return;
+      }
+      moving = false;
       perchOnSettings();
     });
     brain.start();
@@ -835,6 +1082,7 @@ if (!app.requestSingleInstanceLock()) {
     if (firstRun) installing.then(() => setTimeout(() => assistant.start(), 20_000));
     else assistant.start();
     startJournal();
+    startDistractionWatch();
     clip = new ClipboardHelper({
       brain,
       send,

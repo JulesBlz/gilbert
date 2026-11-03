@@ -1,6 +1,6 @@
 // Pont de la fenêtre des réglages : réglages, carnet et connexions (ses trois onglets).
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CarnetApi, ChatApi, ConnectionsApi, ConnStatus, JournalData, Memory, PrefsApi, PrefsState, SettingsTab } from '../shared/types';
+import type { CarnetApi, ChatApi, ProjectsApi, ConnectionsApi, ConnStatus, JournalData, Memory, PrefsApi, PrefsState, SettingsTab } from '../shared/types';
 
 const prefs: PrefsApi = {
   get: () => ipcRenderer.invoke('prefs:get'),
@@ -9,6 +9,8 @@ const prefs: PrefsApi = {
   onChange: (cb) => { ipcRenderer.on('prefs:change', (_e, s: PrefsState) => cb(s)); },
   onTab: (cb) => { ipcRenderer.on('prefs:tab', (_e, t: SettingsTab) => cb(t)); },
   shown: (tab) => ipcRenderer.send('prefs:shown', tab),
+  resize: (width, height) => ipcRenderer.send('prefs:resize', width, height),
+  move: (x, y) => ipcRenderer.send('prefs:move', x, y),
   journal: () => ipcRenderer.invoke('journal:get'),
   onJournal: (cb) => { ipcRenderer.on('journal:change', (_e, d: JournalData) => cb(d)); },
 };
@@ -30,6 +32,12 @@ const carnet: CarnetApi = {
   onChange: (cb) => { ipcRenderer.on('carnet:change', (_e, m: Memory) => cb(m)); },
 };
 
+const projects: ProjectsApi = {
+  get: () => ipcRenderer.invoke('projects:get'),
+  act: (op) => ipcRenderer.send('projects:act', op),
+  onChange: (cb) => { ipcRenderer.on('projects:change', () => cb()); },
+};
+
 const connections: ConnectionsApi = {
   get: () => ipcRenderer.invoke('connections:get'),
   saveMail: (m) => ipcRenderer.invoke('connections:saveMail', m),
@@ -43,4 +51,5 @@ const connections: ConnectionsApi = {
 contextBridge.exposeInMainWorld('prefs', prefs);
 contextBridge.exposeInMainWorld('carnet', carnet);
 contextBridge.exposeInMainWorld('chat', chat);
+contextBridge.exposeInMainWorld('projects', projects);
 contextBridge.exposeInMainWorld('connections', connections);

@@ -11,9 +11,10 @@ import journal from 'pixelarticons/svg/chart-line-sharp.svg';
 import carnet from 'pixelarticons/svg/notes-sharp.svg';
 import settings from 'pixelarticons/svg/settings-cog-2.svg';
 import plug from 'pixelarticons/svg/mail-sharp.svg';
+import projects from 'pixelarticons/svg/briefcase-sharp.svg';
 import back from 'pixelarticons/svg/arrow-left.svg';
 
-const ICONS = { calendar, chat, guide, shop, journal, carnet, settings, plug, back } as const;
+const ICONS = { calendar, chat, guide, shop, journal, carnet, settings, plug, back, projects } as const;
 /** Décalage (en unités de l'icône) qui ramène ses traits sur la grille de 2 px de la page ; mesuré à la rastérisation */
 const SHIFT: Partial<Record<keyof typeof ICONS, [number, number]>> = { calendar: [1, 0], guide: [1, 1], shop: [1, 0], back: [0, 1] };
 export type IconName = keyof typeof ICONS | 'stop';
@@ -36,7 +37,7 @@ export function icon(name: IconName, size = 24) {
   return span;
 }
 
-export const TAB_ICONS = { home: 'calendar', chat: 'chat', guide: 'guide', shop: 'shop', journal: 'journal', carnet: 'carnet' } as const;
+export const TAB_ICONS = { home: 'calendar', chat: 'chat', guide: 'guide', shop: 'shop', journal: 'journal', carnet: 'carnet', projects: 'projects' } as const;
 export const GEAR_TAB_ICONS = { general: 'settings', connections: 'plug', back: 'back' } as const;
 
 /** Une petite grille de « X » en SVG net (la coche des cases) */

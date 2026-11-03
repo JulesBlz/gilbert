@@ -1,7 +1,11 @@
 /* La charte graphique de Gilbert : une seule source pour le menu, le carnet, les connexions et la bulle.
-   Pixel-art en relief. Huit couleurs, cinq tailles de texte, une échelle d'espaces, quatre sortes de
-   boutons. Rien ne s'écrit en dur ailleurs : scripts/check-theme.mjs le vérifie (npm run check:theme). */
+   Pixel-art en relief, en clair et en sombre (:root[data-theme="dark"], posé par le script selon le réglage
+   Apparence ou le système). Trois niveaux de surface : le fond de la page (--bg), les cartes (--card), les
+   champs (--white) ; la carte « héros » de chaque page est teintée (--hero). Un seul bouton orange par carte
+   (l'action) ; les autres sont creux ; le plein sombre est réservé à l'état « choisi ». Rythme : 8, 16, 24 px.
+   Rien ne s'écrit en dur ailleurs : scripts/check-theme.mjs le vérifie (npm run check:theme). */
 :root {
+  color-scheme: light;
   /* couleurs */
   --ink: #1f1b16;          /* texte, contours, bouton sombre, rail */
   --bg: #ecdfc4;           /* fond du panneau : un crème chaud */
@@ -23,6 +27,12 @@
   --on-dark-muted: #cdbfa5;
   --tab-hover: #3a3128;
   --shadow: rgba(60, 40, 20, 0.3);
+  --edge: #8f7e60;         /* contour des boutons creux et des champs */
+  --hero: #fbe8d6;         /* la carte « héros » : un crème teinté d'orange */
+  --hero-edge: #e8b48a;
+  --on-accent: #1f1b16;    /* le texte sur l'orange, clair ou sombre */
+  --rail: #1f1b16;         /* le rail des onglets : toujours sombre */
+  --drop: #1f1b16;         /* l'ombre franche des repères et des boutons orange */
   --paper: var(--bg);      /* ancien nom du fond, encore lu par quelques règles */
 
   /* texte : une seule taille. Jersey 10 est dessinée avec un pixel de 1/9,1 em : à 18 px, il fait 2 px (mesuré),
@@ -34,6 +44,7 @@
   --fs-xxl: 18px;
   --lh: 24px;
   --fs-title: 27px; /* titres : pixels de 3 px */
+  --fs-hero: 36px;  /* le titre d'une fiche : pixels de 4 px */
 
   /* espaces */
   --sp-1: 4px;
@@ -47,6 +58,30 @@
   --px: 2px;
   --bw: 2px;
   --bw-strong: 4px;
+}
+
+/* le thème sombre : mêmes rôles, valeurs inversées ; le rail et l'orange ne changent pas */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #f1e8d4;
+  --bg: #1c1813;
+  --card: #26211a;
+  --white: #302a21;
+  --line: #4a4032;
+  --muted: #b5a78c;
+  --accent-dark: #f29a68;
+  --good: #86c47b;
+  --danger: #ec8573;
+  --gold-ink: #f0cf7a;
+  --gold-bg: #574716;
+  --gold-bg-2: #4a3c12;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --edge: #7d705b;
+  --hero: #33261b;
+  --hero-edge: #8a4f2c;
+  --rail: #12100d;
+  --drop: #0b0907;
+  --tab-hover: #2c261e;
 }
 
 /* vietnamien : VT323 (Jersey 10 n'a pas les accents empilés) est plus petite à corps égal */
@@ -66,27 +101,32 @@ html[lang="vi"] .bubble, html[lang="vi"] .chat {
 
 * { box-sizing: border-box; }
 body { line-height: var(--lh); }
-::selection { background: var(--accent); color: var(--ink); }
+::selection { background: var(--accent); color: var(--on-accent); }
 
-/* boutons : sombre par défaut ; orange (primary) pour l'action principale d'un bloc ; creux (ghost) pour l'accessoire ; rouge (danger) pour supprimer */
+/* boutons : creux par défaut (le contour est discret) ; orange (primary) pour l'action principale d'une carte, une seule ;
+   rouge (danger) pour supprimer. Le plein sombre n'existe que pour l'état « choisi » (voir .seg, .tag.on). */
 button {
   font: inherit;
   cursor: pointer;
   border: 0;
   padding: var(--sp-1) var(--sp-3) 4px;
-  color: var(--card);
-  background: var(--ink);
-}
-button.primary {
   color: var(--ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 var(--bw) var(--edge);
+}
+button:hover { background: var(--bg); box-shadow: inset 0 0 0 var(--bw) var(--ink); }
+button.primary {
+  color: var(--on-accent);
   background: var(--accent);
-  box-shadow: inset 0 0 0 var(--bw) var(--ink), 4px 4px 0 var(--ink);
+  box-shadow: inset 0 0 0 var(--bw) var(--drop), 4px 4px 0 var(--drop);
   margin: 0 4px 4px 0;
 }
-button.primary:hover { background: var(--accent-hover); }
-button.primary:active { transform: translate(2px, 2px); box-shadow: inset 0 0 0 var(--bw) var(--ink), 2px 2px 0 var(--ink); }
-button.ghost { color: var(--ink); background: transparent; box-shadow: inset 0 0 0 var(--bw) var(--ink); }
-button.danger { color: var(--white); background: var(--danger); }
+button.primary:hover { background: var(--accent-hover); box-shadow: inset 0 0 0 var(--bw) var(--drop), 4px 4px 0 var(--drop); }
+button.primary:active { transform: translate(2px, 2px); box-shadow: inset 0 0 0 var(--bw) var(--drop), 2px 2px 0 var(--drop); }
+button.ghost { color: var(--ink); background: transparent; box-shadow: inset 0 0 0 var(--bw) var(--edge); }
+button.ghost:hover { background: var(--bg); box-shadow: inset 0 0 0 var(--bw) var(--ink); }
+button.danger { color: var(--white); background: var(--danger); box-shadow: none; }
+button.danger:hover { background: var(--danger); box-shadow: inset 0 0 0 var(--bw) var(--ink); }
 button:disabled { opacity: 0.5; cursor: default; }
 
 /* champs : un seul style, contour franc ; il passe à l'orange sombre au focus */
@@ -96,7 +136,7 @@ input, textarea, select {
   color: var(--ink);
   background: var(--white);
   border: 0;
-  box-shadow: inset 0 0 0 var(--bw-strong) var(--ink);
+  box-shadow: inset 0 0 0 var(--bw) var(--edge);
   padding: 6px 10px;
   outline: none;
 }
@@ -107,6 +147,8 @@ input[type="range"] { width: auto; box-shadow: none; padding: 0; }
 /* la case à cocher : carrée, sans le dessin natif (qui est arrondi) ; la coche est un petit pixel-art */
 input[type="checkbox"] { -webkit-appearance: none; appearance: none; flex: none; width: 20px; height: 20px; padding: 0; margin: 0; cursor: pointer; background: var(--white) center / 16px 12px no-repeat; box-shadow: inset 0 0 0 var(--bw) var(--ink); }
 input[type="checkbox"]:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 6' shape-rendering='crispEdges'%3E%3Cpath fill='%231f1b16' d='M7 0h1v1h-1zM6 1h2v1h-2zM0 2h1v1h-1zM5 2h2v1h-2zM0 3h2v1h-2zM4 3h2v1h-2zM1 4h4v1h-4zM2 5h2v1h-2z'/%3E%3C/svg%3E"); }
+/* la coche en sombre : le même dessin, en clair */
+:root[data-theme="dark"] input[type="checkbox"]:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 6' shape-rendering='crispEdges'%3E%3Cpath fill='%23f1e8d4' d='M7 0h1v1h-1zM6 1h2v1h-2zM0 2h1v1h-1zM5 2h2v1h-2zM0 3h2v1h-2zM4 3h2v1h-2zM1 4h4v1h-4zM2 5h2v1h-2z'/%3E%3C/svg%3E"); }
 input[type="checkbox"]:focus { box-shadow: inset 0 0 0 var(--bw-strong) var(--accent-dark); }
 input[type="number"] { -moz-appearance: textfield; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

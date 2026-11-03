@@ -11,6 +11,9 @@ import '@fontsource/jersey-10/400.css';
 // VT323 : la police pixel qui a les accents vietnamiens (Jersey 10 ne les a pas)
 import '@fontsource/vt323/400.css';
 import '../shared/theme.css';
+import { applyTheme } from '../shared/theme-apply';
+import { saved } from './saved';
+import { mountWindowChrome } from './window-chrome';
 import '../carnet/carnet.css';
 import './settings.css';
 import head from '../../assets/head.png';
@@ -20,6 +23,8 @@ import { renderJournal } from './journal-tab';
 import { renderShop } from './shop-tab';
 import { GEAR_TAB_ICONS, TAB_ICONS, icon, pixels, tiny } from './icons';
 import { mountChat } from './chat-tab';
+import { listProjects, mountProjects } from './projects-tab';
+import { mountQuickSwitch, type QuickItem } from './quick-switch';
 import { ACORN, drawGrid } from '../shared/pixels';
 import {
   DEFAULT_SETTINGS, LOCALE,
@@ -32,18 +37,18 @@ declare global {
 
 /** Une carte du guide : ce qu'il sait faire, la phrase à lui dire, et ce que fait « Essayer » */
 type Guide = { key: string; title: string; how: string; say?: string; act: [PrefsAction, string?]; needsMail?: boolean };
-type MainTab = 'home' | 'chat' | 'guide' | 'shop' | 'journal' | 'carnet';
+type MainTab = 'home' | 'chat' | 'projects' | 'guide' | 'shop' | 'journal' | 'carnet';
 type GearTab = 'general' | 'connections';
 
 const T = {
   fr: {
-    tabs: { home: "Tableau de bord", chat: 'Discussion', guide: 'Guide', shop: 'Boutique', journal: 'Journal', carnet: 'Carnet' } as Record<MainTab, string>,
+    tabs: { home: "Tableau de bord", chat: 'Discussion', guide: 'Guide', shop: 'Boutique', journal: 'Journal', carnet: 'Carnet', projects: 'Projets' } as Record<MainTab, string>,
     gear: { general: 'Réglages', connections: 'Connexions' } as Record<GearTab, string>,
     setupN: (n: number) => `${n} chose${n > 1 ? 's' : ''} à brancher`,
     back: 'Retour', gearTitle: 'Réglages et connexions',
     greet: (h: number): string => (h < 5 ? 'Bonne nuit' : h < 12 ? 'Bonjour' : h < 18 ? 'Salut' : 'Bonsoir'),
     day: 'Ta journée', allDay: 'Journée', now: 'en cours',
-    nothingToday: 'Rien à l’agenda aujourd’hui.',
+    nothingToday: 'Rien à l’agenda aujourd’hui.', projectWord: 'Projet',
     session: 'Session de travail', sessionHint: 'Un gland par minute.',
     sessionOn: (at: string) => `En cours, jusqu’à ${at}.`, stop: 'Arrêter', launch: 'C’est parti',
     list: 'Ta liste', listAdd: 'Ajouter une tâche…', add: 'Ajouter', toDo: (n: number) => `${n} à faire`,
@@ -64,7 +69,7 @@ const T = {
     acornsHint: '',
     guideTitle: 'Ce que je sais faire', tried: (n: number, of: number) => `${n} / ${of} essayé${n > 1 ? 's' : ''}`,
     ask: 'Demande-moi', auto: 'Ce que je fais tout seul',
-    try: 'Essayer', connect: 'Brancher',
+    try: 'Essayer', redo: 'Refaire', connect: 'Brancher',
     guide: [
       { key: 'chat', title: 'Discuter', how: 'Clique sur moi et écris, ou parle au micro : ce que j’entends s’écrit en direct. Je retiens ce qui compte (dans le Carnet).', say: 'Salut Gilbert, ça va ?', act: ['say', 'Salut Gilbert, ça va ?'] },
       { key: 'focus', title: 'Les sessions de travail', how: 'Dans Aujourd’hui (de 5 à 120 min), dans la barre des menus, ou dis-le-moi. Je bosse avec toi ; un gland par minute.', say: 'Gilbert, 25 minutes', act: ['focusStart', '25'] },
@@ -83,6 +88,8 @@ const T = {
     humor: 'Humour', humors: { sober: 'Sobre', normal: 'Normal', unbearable: 'Insupportable' },
     lang: 'Langue',
     size: 'Taille', sizes: { S: 'Petit', M: 'Moyen', L: 'Grand' },
+    newChat: 'Nouvelle discussion', newProject: 'Nouveau projet',
+    theme: 'Apparence', themes: { auto: 'Système', light: 'Clair', dark: 'Sombre' },
     sound: 'Sa voix et ses petits bruits',
     hide: 'Il va se cacher en haut de l’écran après', hides: { 25: '20 à 30 s', 60: '1 min', 180: '3 min', 0: 'Jamais' },
     allowed: 'Ce qu’il a le droit de faire',
@@ -90,6 +97,9 @@ const T = {
       vision: ['Regarder mon écran', 'Erreurs, fautes, oublis ; il se tait en visio et te rappelle à l’ordre. Il lit le texte de la fenêtre au premier plan, sur ton ordi, et ne garde rien.'],
       clipboard: ['M’aider avec ce que je copie', 'Traduire, résumer, corriger, reformuler, expliquer une erreur.'],
       tidy: ['Ranger mes Téléchargements', 'Il propose quand ça déborde, ne fait rien sans ton accord.'],
+      projectIdeas: ['Proposer des projets', 'Quand un même sujet revient dans tes mails importants, je propose d’en faire une fiche projet (je demande toujours avant).'],
+      projectScreen: ['Projets : lire l’écran', 'Si la fenêtre ouverte parle d’un projet suivi, je note une ligne utile ou une chose à ne pas oublier dans sa fiche. Ni image ni texte de l’écran n’est gardé.'],
+      updates: ['Chercher les mises à jour', 'Gilbert regarde sur GitHub si une nouvelle version existe et te propose de s’y mettre (jamais sans ton accord ; archive signée, vérifiée avant installation).'],
       webSearch: ['Chercher sur internet', 'Quand il ne sait pas (actu, faits récents) ou si tu le lui demandes. Seule la question part, vers DuckDuckGo, sans compte.'],
       musicComments: ['Commenter ma musique', 'De temps en temps, sur Spotify ou Musique.'],
       journal: ['Tenir mon carnet de bord', 'Le nom des applis utilisées, les sessions, la note du soir.'],
@@ -124,13 +134,13 @@ const T = {
     close: 'Fermer',
   },
   en: {
-    tabs: { home: 'Dashboard', chat: 'Chat', guide: 'Guide', shop: 'Shop', journal: 'Journal', carnet: 'Notebook' } as Record<MainTab, string>,
+    tabs: { home: 'Dashboard', chat: 'Chat', guide: 'Guide', shop: 'Shop', journal: 'Journal', carnet: 'Notebook', projects: 'Projects' } as Record<MainTab, string>,
     gear: { general: 'Settings', connections: 'Connections' } as Record<GearTab, string>,
     setupN: (n: number) => `${n} thing${n > 1 ? 's' : ''} to set up`,
     back: 'Back', gearTitle: 'Settings and connections',
     greet: (h: number): string => (h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Hi' : 'Good evening'),
     day: 'Your day', allDay: 'All day', now: 'now',
-    nothingToday: 'Nothing on the calendar today.',
+    nothingToday: 'Nothing on the calendar today.', projectWord: 'Project',
     session: 'Work session', sessionHint: 'One acorn per minute.',
     sessionOn: (at: string) => `Running, until ${at}.`, stop: 'Stop', launch: 'Let’s go',
     list: 'Your list', listAdd: 'Add a task…', add: 'Add', toDo: (n: number) => `${n} to do`,
@@ -151,7 +161,7 @@ const T = {
     acornsHint: '',
     guideTitle: 'What I can do', tried: (n: number, of: number) => `${n} / ${of} tried`,
     ask: 'Ask me', auto: 'What I do on my own',
-    try: 'Try it', connect: 'Connect',
+    try: 'Try it', redo: 'Again', connect: 'Connect',
     guide: [
       { key: 'chat', title: 'Chat', how: 'Click me and type, or talk into the mic: what I hear is written live. I remember what matters (in the Notebook).', say: 'Hi Gilbert, how are you?', act: ['say', 'Hi Gilbert, how are you?'] },
       { key: 'focus', title: 'Work sessions', how: 'From Today (5 to 120 min), the menu bar, or just tell me. I work with you; one acorn per minute.', say: 'Gilbert, 25 minutes', act: ['focusStart', '25'] },
@@ -170,6 +180,8 @@ const T = {
     humor: 'Humour', humors: { sober: 'Sober', normal: 'Normal', unbearable: 'Unbearable' },
     lang: 'Language',
     size: 'Size', sizes: { S: 'Small', M: 'Medium', L: 'Large' },
+    newChat: 'New chat', newProject: 'New project',
+    theme: 'Appearance', themes: { auto: 'System', light: 'Light', dark: 'Dark' },
     sound: 'His voice and little noises',
     hide: 'He hides at the top of the screen after', hides: { 25: '20 to 30 s', 60: '1 min', 180: '3 min', 0: 'Never' },
     allowed: 'What he is allowed to do',
@@ -177,6 +189,9 @@ const T = {
       vision: ['Watch my screen', 'Errors, typos, oversights; goes quiet in calls and nudges you. Reads the front window’s text, on your computer, keeps nothing.'],
       clipboard: ['Help with what I copy', 'Translate, summarise, fix, rephrase, explain an error.'],
       tidy: ['Tidy my Downloads', 'Offers when they overflow, does nothing without your OK.'],
+      projectIdeas: ['Suggest projects', 'When the same topic keeps showing up in your important emails, I offer to make a project sheet (I always ask first).'],
+      projectScreen: ['Projects: read the screen', 'If the open window is about a tracked project, I note one useful line or a to-do in its sheet. No image or screen text is kept.'],
+      updates: ['Check for updates', 'Gilbert looks on GitHub for a newer version and offers to install it (never without your consent; the archive is signed and verified first).'],
       webSearch: ['Search the web', 'When he does not know (news, recent facts) or when you ask. Only the question is sent, to DuckDuckGo, no account.'],
       musicComments: ['Comment on my music', 'Now and then, on Spotify or Music.'],
       journal: ['Keep my logbook', 'Names of the apps you use, sessions, the evening note.'],
@@ -211,13 +226,13 @@ const T = {
     close: 'Close',
   },
   vi: {
-    tabs: { home: 'Bảng điều khiển', chat: 'Trò chuyện', guide: 'Hướng dẫn', shop: 'Cửa hàng', journal: 'Nhật ký', carnet: 'Sổ tay' } as Record<MainTab, string>,
+    tabs: { home: 'Bảng điều khiển', chat: 'Trò chuyện', guide: 'Hướng dẫn', shop: 'Cửa hàng', journal: 'Nhật ký', carnet: 'Sổ tay', projects: 'Dự án' } as Record<MainTab, string>,
     gear: { general: 'Cài đặt', connections: 'Kết nối' } as Record<GearTab, string>,
     setupN: (n: number) => `${n} việc cần thiết lập`,
     back: 'Quay lại', gearTitle: 'Cài đặt và kết nối',
     greet: (h: number): string => (h < 5 ? 'Khuya rồi' : h < 12 ? 'Chào buổi sáng' : h < 18 ? 'Chào' : 'Chào buổi tối'),
     day: 'Ngày của cậu', allDay: 'Cả ngày', now: 'đang diễn ra',
-    nothingToday: 'Hôm nay lịch trống.',
+    nothingToday: 'Hôm nay lịch trống.', projectWord: 'Dự án',
     session: 'Buổi làm việc', sessionHint: 'Mỗi phút một quả sồi.',
     sessionOn: (at: string) => `Đang làm, đến ${at}.`, stop: 'Dừng', launch: 'Bắt đầu',
     list: 'Danh sách việc', listAdd: 'Thêm một việc…', add: 'Thêm', toDo: (n: number) => `${n} việc`,
@@ -238,7 +253,7 @@ const T = {
     acornsHint: '',
     guideTitle: 'Những gì tớ làm được', tried: (n: number, of: number) => `đã thử ${n} / ${of}`,
     ask: 'Cứ hỏi tớ', auto: 'Tớ tự làm',
-    try: 'Thử xem', connect: 'Kết nối',
+    try: 'Thử xem', redo: 'Thử lại', connect: 'Kết nối',
     guide: [
       { key: 'chat', title: 'Trò chuyện', how: 'Bấm vào tớ và gõ, hoặc nói vào micro: tớ nghe đến đâu viết đến đó. Tớ nhớ những điều quan trọng (trong Sổ tay).', say: 'Chào Gilbert, khỏe không?', act: ['say', 'Chào Gilbert, khỏe không?'] },
       { key: 'focus', title: 'Buổi làm việc', how: 'Ở mục Hôm nay (5 đến 120 phút), trên thanh menu, hoặc cứ bảo tớ. Mỗi phút một quả sồi.', say: 'Gilbert, 25 phút', act: ['focusStart', '25'] },
@@ -257,6 +272,8 @@ const T = {
     humor: 'Hài hước', humors: { sober: 'Nghiêm túc', normal: 'Bình thường', unbearable: 'Lắm mồm' },
     lang: 'Ngôn ngữ',
     size: 'Kích thước', sizes: { S: 'Nhỏ', M: 'Vừa', L: 'Lớn' },
+    newChat: 'Cuộc trò chuyện mới', newProject: 'Dự án mới',
+    theme: 'Giao diện', themes: { auto: 'Hệ thống', light: 'Sáng', dark: 'Tối' },
     sound: 'Giọng nói và tiếng động nhỏ',
     hide: 'Tớ trốn lên mép trên màn hình sau', hides: { 25: '20 đến 30 giây', 60: '1 phút', 180: '3 phút', 0: 'Không bao giờ' },
     allowed: 'Những gì tớ được phép làm',
@@ -264,6 +281,9 @@ const T = {
       vision: ['Nhìn màn hình', 'Lỗi, lỗi chính tả, sơ suất; im khi họp và nhắc cậu tập trung. Đọc chữ cửa sổ phía trước, ngay trên máy, không giữ lại gì.'],
       clipboard: ['Giúp với những gì tớ sao chép', 'Dịch, tóm tắt, sửa, viết lại, giải thích lỗi.'],
       tidy: ['Dọn thư mục Tải về', 'Gợi ý khi đầy, không làm gì khi chưa được đồng ý.'],
+      projectIdeas: ['Gợi ý dự án', 'Khi cùng một chủ đề cứ xuất hiện trong email quan trọng, tớ đề nghị tạo hồ sơ dự án (luôn hỏi trước).'],
+      projectScreen: ['Dự án: đọc màn hình', 'Nếu cửa sổ đang mở nói về một dự án đang theo dõi, tớ ghi một dòng hữu ích hoặc việc cần nhớ vào hồ sơ. Không lưu hình hay chữ trên màn hình.'],
+      updates: ['Kiểm tra bản cập nhật', 'Gilbert xem trên GitHub có bản mới không và hỏi cậu có muốn cập nhật (không bao giờ tự làm; gói được ký và kiểm tra trước khi cài).'],
       webSearch: ['Tìm trên mạng', 'Khi tớ không biết (tin tức, chuyện mới) hoặc cậu nhờ. Chỉ câu hỏi được gửi đến DuckDuckGo, không cần tài khoản.'],
       musicComments: ['Bình luận nhạc', 'Thỉnh thoảng, trên Spotify hoặc Nhạc.'],
       journal: ['Ghi nhật ký', 'Tên ứng dụng đã dùng, các buổi làm việc, ghi chú buổi tối.'],
@@ -329,7 +349,7 @@ function previewChat(): ChatApi {
 const api: PrefsApi = window.prefs ?? (() => {
   const day = new Date().toLocaleDateString('sv');
   let state: PrefsState = {
-    settings: { ...DEFAULT_SETTINGS, tried: ['chat', 'brief', 'tidy'], collected: ['tidy'], owned: ['gray', 'fox', 'glasses'], skin: { fur: 'fox', accessory: 'glasses' } }, quiet: false, vision: { supported: true, permission: 'granted' },
+    settings: { ...DEFAULT_SETTINGS, tried: ['chat', 'brief', 'tidy'], collected: ['tidy'], owned: ['gray', 'fox', 'tophat'], skin: { fur: 'fox', accessory: 'tophat' } }, quiet: false, vision: { supported: true, permission: 'granted' },
     brain: { state: 'ready', model: 'Gemma 4 12B' }, ramGB: 16, mail: false,
     brains: [
       { id: 'gemma-4-e2b', tier: 'light', label: 'Gemma 4 E2B', size: 3.11e9, minRamGB: 0, downloaded: false, active: false, recommended: false, pulling: null },
@@ -348,6 +368,7 @@ const api: PrefsApi = window.prefs ?? (() => {
         { id: 'd', title: 'Relire le mémoire', due: '', time: '', done: true },
       ],
       waiting: ['Paul Martin', 'Linh'],
+      projects: [{ id: 'a', name: 'Refonte du site', text: 'Envoyer le devis révisé', due: day, late: false }],
     },
   };
   const subs: ((s: PrefsState) => void)[] = [];
@@ -358,6 +379,8 @@ const api: PrefsApi = window.prefs ?? (() => {
     onChange: (cb) => { subs.push(cb); },
     onTab: () => {},
     shown: () => {},
+    resize: () => {},
+    move: () => {},
     journal: async () => ({
       days: {
         [day]: { apps: { 'Visual Studio Code': 142, 'Google Chrome': 96, Figma: 51, Slack: 18 }, focus: { sessions: 3, minutes: 100, stopped: 1 }, done: ['Rendre le devis'], mails: 4, chats: 7, note: '', acorns: 100 },
@@ -370,7 +393,7 @@ const api: PrefsApi = window.prefs ?? (() => {
 
 let t = T.fr;
 const root = document.getElementById('app')!;
-const MAIN: MainTab[] = ['chat', 'home', 'shop', 'journal', 'carnet', 'guide'];
+const MAIN: MainTab[] = ['chat', 'home', 'projects', 'shop', 'journal', 'carnet', 'guide'];
 const GEAR: GearTab[] = ['general', 'connections'];
 const TABS: SettingsTab[] = [...MAIN, ...GEAR];
 const panes = {} as Record<SettingsTab, HTMLElement>;
@@ -392,7 +415,10 @@ function h<E extends HTMLElement = HTMLElement>(tag: string, props: Record<strin
   return el;
 }
 
+let currentTab: SettingsTab = 'chat';
+
 function show(tab: SettingsTab) {
+  currentTab = tab;
   api.shown(tab);
   document.body.classList.toggle('on-chat', tab === 'chat');
   if (tab === 'chat') openChat?.();
@@ -405,10 +431,11 @@ function show(tab: SettingsTab) {
   content.scrollTop = 0;
 }
 
-const set = (patch: Partial<Settings>) => api.set(patch);
+const set = (patch: Partial<Settings>) => { api.set(patch); saved(); };
 
 /** L'onglet Discussion s'affiche : la dernière conversation s'ouvre */
 let openChat: (() => Promise<void>) | null = null;
+let chatApi: ChatApi | null = null;
 
 function button(text: string, onClick: () => void, ghost = true) {
   const b = h<HTMLButtonElement>('button', { textContent: text, className: ghost ? 'ghost' : 'primary' });
@@ -462,8 +489,15 @@ function renderDay() {
   for (const e of d.events) {
     sec.append(h('div', { className: 'line' }, h('span', { className: 'when' }, e.time || t.allDay), h('span', {}, e.title, ...(e.now ? [h('em', {}, ` · ${t.now}`)] : []))));
   }
+  // les projets : ce qui presse (échéances proches ou passées, réponses attendues) ; un clic ouvre la fiche
+  for (const p of d.projects) {
+    const line = h<HTMLButtonElement>('button', { className: `line project${p.late ? ' late' : ''}`, type: 'button', title: p.name },
+      h('span', { className: 'when' }, p.due ? dueLabel(p.due).text : t.projectWord), h('span', {}, `${p.name} · ${p.text}`));
+    line.addEventListener('click', () => { show('projects'); setTimeout(() => window.dispatchEvent(new CustomEvent('gilbert:project', { detail: p.id })), 0); });
+    sec.append(line);
+  }
   if (d.waiting.length) sec.append(h('p', { className: 'waiting' }, t.waiting(d.waiting)));
-  if (!d.events.length && !d.waiting.length) sec.append(h('p', { className: 'empty' }, t.nothingToday));
+  if (!d.events.length && !d.waiting.length && !d.projects.length) sec.append(h('p', { className: 'empty' }, t.nothingToday));
   return sec;
 }
 
@@ -675,7 +709,8 @@ function renderGuide() {
   const collected = new Set(state.settings.collected);
   const card = (g: Guide) => {
     const off = g.needsMail && !state.mail;
-    const b = button(off ? t.connect : t.try, () => {
+    const did = tried.has(g.key);
+    const b = button(off ? t.connect : did ? t.redo : t.try, () => {
       if (off) return show('connections');
       // la récompense se débloque quand la fonction sert vraiment (c'est Gilbert qui le voit)
       // la session se lance depuis Aujourd'hui : on y va, et le bloc clignote
@@ -690,8 +725,9 @@ function renderGuide() {
       }
       api.action(...g.act);
     }, false);
-    b.className = 'try';
-    return h('div', { className: `card${tried.has(g.key) ? ' tried' : ''}`, title: g.how },
+    // à faire : orange ; déjà fait : creux, et la carte s'efface
+    b.className = did || off ? 'try' : 'try primary';
+    return h('div', { className: `card${did ? ' tried' : ''}`, title: g.how },
       h('b', {}, g.title),
       ...(g.say ? [h('q', {}, g.say)] : []),
       h('div', { className: 'card-actions' }, b, ...(tried.has(g.key) && !collected.has(g.key) ? [reward(g.key)] : [])));
@@ -709,6 +745,10 @@ function renderGuide() {
 function renderGeneral() {
   const s = state.settings;
 
+  // l'apparence, en tête : clair, sombre, ou comme le système
+  const appearance = h('section', {}, h('h2', {}, t.theme),
+    ...seg<Settings['theme']>('', [['light', t.themes.light], ['dark', t.themes.dark], ['auto', t.themes.auto]], s.theme ?? 'auto', (theme) => set({ theme })));
+
   const character = h('section', {}, h('h2', {}, t.character),
     ...seg<Lang>(t.lang, [['fr', 'Français'], ['en', 'English'], ['vi', 'Tiếng Việt']], s.lang, (lang) => set({ lang })),
     ...seg<Humor>(t.humor, [['sober', t.humors.sober], ['normal', t.humors.normal], ['unbearable', t.humors.unbearable]], s.humor, (humor) => set({ humor })),
@@ -718,9 +758,9 @@ function renderGeneral() {
   );
 
   const allowed = h('section', {}, h('h2', {}, t.allowed));
-  const keys = (['vision', 'clipboard', 'messages', 'tidy', 'musicComments', 'journal', 'moods', 'webSearch'] as const)
+  const keys = (['vision', 'clipboard', 'messages', 'tidy', 'musicComments', 'journal', 'moods', 'webSearch', 'projectIdeas', 'projectScreen', 'updates'] as const)
     // les messageries : seulement sur Mac (la pastille des applis)
-    .filter((k) => (k !== 'vision' || state.vision.supported) && (k !== 'messages' || /Mac/.test(navigator.platform)));
+    .filter((k) => (k !== 'vision' || state.vision.supported) && (k !== 'messages' || /Mac/.test(navigator.platform)) && (k !== 'updates' || /Mac/.test(navigator.platform)));
   for (const k of keys) {
     const [label, hint] = t.switches[k];
     const denied = k === 'vision' && s.vision && state.vision.permission !== 'granted' ? t.visionDenied : '';
@@ -752,7 +792,7 @@ function renderGeneral() {
   const data = h('section', {}, h('h2', {}, t.data), h('p', { className: 'empty' }, t.dataHint),
     h('div', { className: 'buttons' }, button(t.openData, () => api.action('openData'))));
 
-  panes.general.replaceChildren(character, allowed, brain, data);
+  panes.general.replaceChildren(appearance, character, allowed, brain, data);
 }
 
 /** Tu écris dans un champ de cette page (un renommage, une tâche pas encore ajoutée) : on ne la reconstruit pas sous tes doigts */
@@ -788,7 +828,7 @@ function renderAll() {
   renderGuide();
   renderShop(panes.shop, state, state.settings.lang, (a, id) => api.action(a, id));
   renderGeneral();
-  if (journal) renderJournal(panes.journal, journal, state.settings.lang, state.settings.journal);
+  if (journal) renderJournal(panes.journal, journal, state.settings.lang, state.settings.journal, { enable: () => set({ journal: true }), focus: () => api.action('focusStart', '25') });
 }
 
 function closeButton() {
@@ -802,10 +842,11 @@ api.get().then((s) => {
   state = s;
   t = T[s.settings.lang] ?? T.fr;
   document.documentElement.lang = s.settings.lang;
+  applyTheme(s.settings.theme);
   for (const k of TABS) panes[k] = h('div', { className: `pane pane-${k}` });
   mainNav = h('nav', { className: 'tabs' });
-  for (const k of MAIN) {
-    tabButtons[k] = h<HTMLButtonElement>('button', { className: 'tab', title: t.tabs[k] }, icon(TAB_ICONS[k as MainTab]), h('span', {}, t.tabs[k]));
+  for (const [i, k] of MAIN.entries()) {
+    tabButtons[k] = h<HTMLButtonElement>('button', { className: 'tab', title: `${t.tabs[k]}  ${MOD}${i + 1}` }, icon(TAB_ICONS[k as MainTab]), h('span', {}, t.tabs[k]));
     tabButtons[k].addEventListener('click', () => show(k));
     mainNav.append(tabButtons[k]);
   }
@@ -823,8 +864,11 @@ api.get().then((s) => {
   panes.home.addEventListener('focusout', () => setTimeout(() => {
     if (homeStale && !typingIn(panes.home)) { homeStale = false; renderHome(); }
   }, 0));
-  openChat = mountChat(panes.chat, window.chat ?? previewChat(), () => state.settings.lang);
+  chatApi = window.chat ?? previewChat();
+  openChat = mountChat(panes.chat, chatApi, () => state.settings.lang);
+  mountWindowChrome((w, h) => api.resize(w, h), (x, y) => api.move(x, y));
   mountCarnet(panes.carnet);
+  mountProjects(panes.projects);
   mountConnections(panes.connections);
   renderAll();
   document.documentElement.style.setProperty('--header-h', `${root.querySelector('header')?.offsetHeight ?? 70}px`);
@@ -834,6 +878,7 @@ api.get().then((s) => {
 });
 
 api.onChange((s) => {
+  applyTheme(s.settings.theme);
   const relang = s.settings.lang !== state.settings.lang;
   state = s;
   // changement de langue : on reconstruit toute la fenêtre
@@ -842,4 +887,37 @@ api.onChange((s) => {
 });
 api.onJournal((d) => { journal = d; renderAll(); });
 api.onTab(show);
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.close(); });
+
+// ---------- raccourcis : ⌘1…7 les pages, ⌘8 Connexions, ⌘, Réglages, ⌘N nouveau, ⌘K recherche rapide ----------
+
+const MOD = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+const quick = mountQuickSwitch(async () => {
+  const k = { fr: ['Page', 'Projet', 'Discussion', 'Action'], en: ['Page', 'Project', 'Chat', 'Action'], vi: ['Trang', 'Dự án', 'Trò chuyện', 'Thao tác'] }[state.settings.lang] ?? ['Page', 'Project', 'Chat', 'Action'];
+  const go = (tab: SettingsTab, event?: [string, string]) => () => { show(tab); if (event) setTimeout(() => window.dispatchEvent(new CustomEvent(event[0], { detail: event[1] })), 0); };
+  const items: QuickItem[] = [
+    { label: `${t.newChat}`, hint: `${k[3]} · ${MOD}N`, run: go('chat', ['gilbert:chat', 'new']) },
+    { label: `${t.newProject}`, hint: k[3], run: go('projects', ['gilbert:project', 'new']) },
+    ...MAIN.map((tab, i) => ({ label: t.tabs[tab], hint: `${k[0]} · ${MOD}${i + 1}`, run: go(tab) })),
+    ...GEAR.map((tab) => ({ label: t.gear[tab], hint: k[0], run: go(tab) })),
+  ];
+  const [projects, chats] = await Promise.all([listProjects().catch(() => []), (chatApi?.list() ?? Promise.resolve([])).catch(() => [])]);
+  items.push(...projects.map((p) => ({ label: p.name, hint: `${k[1]}${p.category ? ` · ${p.category}` : ''}`, run: go('projects', ['gilbert:project', p.id]) })));
+  items.push(...chats.filter((c) => c.count > 0).map((c) => ({ label: c.title, hint: k[2], run: go('chat', ['gilbert:chat', c.id]) })));
+  return items;
+}, () => state.settings.lang);
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (quick.isOpen()) quick.close(); else window.close();
+    return;
+  }
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || !state) return;
+  const key = e.key.toLowerCase();
+  if (key === 'k') { e.preventDefault(); void (quick.isOpen() ? quick.close() : quick.open()); }
+  else if (key === 'n') { e.preventDefault(); show(currentTab === 'projects' ? 'projects' : 'chat'); window.dispatchEvent(new CustomEvent(currentTab === 'projects' ? 'gilbert:project' : 'gilbert:chat', { detail: 'new' })); }
+  else if (key === ',') { e.preventDefault(); show('general'); }
+  else if (/^[1-9]$/.test(key)) {
+    const tab = Number(key) <= MAIN.length ? MAIN[Number(key) - 1] : Number(key) === MAIN.length + 1 ? 'connections' : null;
+    if (tab) { e.preventDefault(); show(tab); }
+  }
+});

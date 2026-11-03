@@ -392,7 +392,8 @@ export class Pet {
       if (Math.abs(tx - this.x) < 80) tx = this.x + (tx > this.x ? 120 : -120);
       this.targetX = Math.min(Math.max(tx, lo), hi);
       // il marche pour les petits trajets, et bondit plutôt pour traverser l'écran
-      this.move = Math.abs(this.targetX - this.x) > 250 && Math.random() < 0.6 ? 'hop' : 'walk';
+      // la marche est désactivée (le code reste) : il avance toujours en bondissant
+      this.move = 'hop';
       this.hopT = 0;
       this.hopChain = false;
       this.setState('walk');
@@ -1200,7 +1201,7 @@ export class Pet {
   walkTo(x: number) {
     if (!['idle'].includes(this.state) || this.perch) return false;
     this.targetX = Math.min(Math.max(x, this.size / 2), innerWidth - this.size / 2);
-    this.move = 'walk';
+    this.move = 'hop';
     this.hopT = 0;
     this.hopChain = false;
     this.setState('walk');

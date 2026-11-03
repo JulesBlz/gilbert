@@ -20,7 +20,7 @@ const T = {
     streakHint: 'd’affilée avec une session', completion: 'Sessions menées au bout',
     together: 'Ensemble depuis', focusEver: 'Concentration en tout', doneEver: 'Choses faites',
     nothing: "Rien pour l'instant. Lance une session (« Gilbert, 25 minutes ») et je note tout.",
-    off: 'Le carnet de bord est désactivé (dans les réglages, la roue crantée).', note: 'La note de Gilbert',
+    off: 'Le carnet de bord est désactivé.', enable: 'Activer le carnet de bord', start: 'Lancer 25 minutes', note: 'La note de Gilbert',
   },
   en: {
     today: 'Today', week: 'This week', ever: 'Since we met', past: 'Earlier days', weeks: 'Weeks',
@@ -35,7 +35,7 @@ const T = {
     streakHint: 'in a row with a session', completion: 'Sessions completed',
     together: 'Together for', focusEver: 'Total focus', doneEver: 'Things done',
     nothing: 'Nothing yet. Start a session ("Gilbert, 25 minutes") and I’ll log everything.',
-    off: 'The logbook is turned off (in the settings, the gear).', note: "Gilbert's note",
+    off: 'The logbook is turned off.', enable: 'Turn the logbook on', start: 'Start 25 minutes', note: "Gilbert's note",
   },
   vi: {
     today: 'Hôm nay', week: 'Tuần này', ever: 'Từ khi mình quen nhau', past: 'Những ngày trước', weeks: 'Các tuần',
@@ -50,7 +50,7 @@ const T = {
     streakHint: 'liên tiếp có buổi làm việc', completion: 'Buổi làm trọn vẹn',
     together: 'Bên nhau được', focusEver: 'Tổng thời gian tập trung', doneEver: 'Việc đã xong',
     nothing: 'Chưa có gì. Bắt đầu một buổi (« Gilbert, 25 phút ») và tớ ghi lại hết.',
-    off: 'Nhật ký đang tắt (trong cài đặt, bánh răng).', note: 'Ghi chú của Gilbert',
+    off: 'Nhật ký đang tắt.', enable: 'Bật nhật ký', start: 'Bắt đầu 25 phút', note: 'Ghi chú của Gilbert',
   },
 };
 
@@ -98,11 +98,17 @@ function appBars(apps: [string, number][], total: number) {
 
 const notes = (text: string) => h('div', { className: 'help' }, ...text.split('\n').map((l) => h('p', {}, l)));
 
-export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, enabled: boolean) {
+/** `act` : les actions des états vides (activer le carnet, lancer une session) */
+export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, enabled: boolean, act?: { enable(): void; focus(): void }) {
   const t = T[lang];
   const locale = LOCALE[lang];
   const sections: HTMLElement[] = [];
-  if (!enabled) sections.push(h('p', { className: 'empty' }, t.off));
+  const cta = (label: string, go?: () => void) => {
+    const b = h<HTMLButtonElement>('button', { className: 'primary', textContent: label, type: 'button' });
+    b.addEventListener('click', () => go?.());
+    return b;
+  };
+  if (!enabled) sections.push(h('div', { className: 'empty-state' }, h('p', {}, t.off), ...(act ? [cta(t.enable, act.enable)] : [])));
 
   // ----- aujourd'hui -----
   const today = data.days[iso(new Date())];
@@ -120,7 +126,7 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
     if (apps.length) todaySec.append(h('div', { className: 'label' }, t.apps), ...appBars(apps, screen));
     if (today.note) todaySec.append(notes(today.note));
   } else {
-    todaySec.append(h('p', { className: 'empty' }, t.nothing));
+    todaySec.append(h('div', { className: 'empty-state' }, h('p', {}, t.nothing), ...(act ? [cta(t.start, act.focus)] : [])));
   }
   sections.push(todaySec);
 

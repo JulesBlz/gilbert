@@ -3,6 +3,7 @@ import '@fontsource/jersey-10/400.css';
 // VT323 : la police pixel qui a les accents vietnamiens (Jersey 10 ne les a pas)
 import '@fontsource/vt323/400.css';
 import '../shared/theme.css';
+import { applyTheme } from '../shared/theme-apply';
 import './style.css';
 
 import { api, isPreview } from './api';
@@ -227,6 +228,7 @@ async function main() {
     switch (cmd.type) {
       case 'settings':
         pet.settings = cmd.settings;
+        applyTheme(cmd.settings.theme);
         wearSkin(cmd.settings.skin);
         setLang(cmd.settings.lang);
         setSoundEnabled(!cmd.settings.muted);

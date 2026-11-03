@@ -160,6 +160,14 @@ export class Journal extends EventEmitter {
     return true;
   }
 
+  /** Rend le prix d'un objet retiré de la boutique */
+  refund(acorns: number) {
+    const spent = this.data.acorns.spent;
+    if (!spent) return;
+    spent.acorns = Math.max(0, spent.acorns - acorns);
+    this.save(true);
+  }
+
   /** Les glands dorés d'une ancienne version : ceux qui restaient valent 100 glands chacun */
   private dropGolden() {
     const a = this.data.acorns as { total: number; golden?: number; spent?: { acorns: number; golden?: number }; pending?: { acorns: number; golden?: number } };

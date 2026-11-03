@@ -57,6 +57,14 @@ export interface Settings {
   musicComments: boolean;
   /** Il peut chercher sur internet (DuckDuckGo) pour répondre : la seule fonction qui sort de l'ordinateur */
   webSearch: boolean;
+  /** Chercher les nouvelles versions sur GitHub (et proposer de s'y mettre) */
+  updates: boolean;
+  /** Apparence : clair, sombre, ou comme le système */
+  theme: 'auto' | 'light' | 'dark';
+  /** Proposer de créer une fiche projet quand un même sujet revient dans les mails */
+  projectIdeas: boolean;
+  /** Noter dans les fiches projet ce qu'il voit à l'écran (une ligne, jamais l'écran) */
+  projectScreen: boolean;
   /** Il tient le carnet de bord (applis utilisées, sessions, note du soir, résumé de la semaine) */
   journal: boolean;
   /** Il propose son aide sur ce que tu copies (traduire, résumer, corriger, expliquer) */
@@ -90,6 +98,10 @@ export const DEFAULT_SETTINGS: Settings = {
   owned: ['gray'],
   musicComments: true,
   webSearch: true,
+  updates: true,
+  theme: 'auto',
+  projectIdeas: true,
+  projectScreen: true,
   journal: true,
   clipboard: true,
   moods: true,
@@ -171,6 +183,8 @@ export interface Memory {
   profile: Profile;
   people: Person[];
   facts: Fact[];
+  /** Sites ou applis qui te distraient : pendant une session de travail, il te le dit au bout de 10 minutes dessus */
+  distractions: string[];
   /** Ancien indicateur des questions de départ (retirées) ; gardé pour relire les anciens fichiers */
   onboarded: boolean;
 }
@@ -179,6 +193,7 @@ export const EMPTY_MEMORY: Memory = {
   profile: { name: '', nickname: '', city: '', job: '', schedule: '', birthday: '', fuel: '', goal: '', humor: '', procrastination: '', motivation: '', avoid: '' },
   people: [],
   facts: [],
+  distractions: [],
   onboarded: false,
 };
 
@@ -412,6 +427,8 @@ export interface Today {
   tasks: { id: string; title: string; due: string; time: string; done: boolean; parent?: string }[];
   /** Les expéditeurs des mails qui attendent ta réponse */
   waiting: string[];
+  /** Ce qui presse dans les projets : échéances proches ou passées, réponses attendues */
+  projects: { id: string; name: string; text: string; due: string; late: boolean }[];
 }
 
 export type PrefsAction =
@@ -429,7 +446,7 @@ export type PrefsAction =
   | 'taskSplit'
   /** La boutique : acheter l'objet `arg`, ou le porter (un accessoire porté se retire) */
   | 'buy' | 'wear';
-export type SettingsTab = 'home' | 'chat' | 'guide' | 'shop' | 'journal' | 'carnet' | 'connections' | 'general';
+export type SettingsTab = 'home' | 'chat' | 'projects' | 'guide' | 'shop' | 'journal' | 'carnet' | 'connections' | 'general';
 
 /** API de l'onglet Réglages, sous `window.prefs` */
 export interface PrefsApi {
@@ -445,6 +462,10 @@ export interface PrefsApi {
   onTab(cb: (tab: SettingsTab) => void): void;
   /** Cet onglet est affiché (Gilbert s'assoit sur la branche pour discuter, sur le bord du haut sinon) */
   shown(tab: SettingsTab): void;
+  /** Donne sa taille à la fenêtre du menu (les poignées d'angle et de bord) */
+  resize(width: number, height: number): void;
+  /** Place la fenêtre du menu (on la tire par son titre) */
+  move(x: number, y: number): void;
 }
 
 /** Un message d'une discussion longue */
@@ -484,4 +505,98 @@ export interface CarnetApi {
   save(memory: Memory): void;
   forgetAll(): void;
   onChange(cb: (memory: Memory) => void): void;
+}
+
+// ---------- les projets ----------
+
+/** En cours, en attente (bloqué, pas la main), terminé */
+export type ProjectStatus = 'active' | 'paused' | 'done';
+
+/** Ce qu'il ne faut pas oublier : une case à cocher, avec une échéance si elle existe */
+export interface ProjectTodo {
+  id: string;
+  text: string;
+  /** AAAA-MM-JJ, ou vide */
+  due: string;
+  done: boolean;
+  /** Ajouté par Gilbert (un mail, ce qu'il a vu à l'écran) plutôt que par toi */
+  auto: boolean;
+  at: number;
+  /** Rappels déjà faits (« j-3 », « j-1 », « jour », « retard:AAAA-MM-JJ ») */
+  reminded?: string[];
+}
+
+/** Une info que Gilbert a relevée (« Dernières infos ») */
+export interface ProjectNote {
+  id: string;
+  at: number;
+  text: string;
+  /** D'où vient l'info : un mail, ce qu'il a vu à l'écran, la discussion, ou toi */
+  source: 'mail' | 'screen' | 'chat' | 'manual';
+}
+
+/** Une fiche de suivi : un document par projet, que Gilbert tient à jour et que tu peux modifier */
+export interface Project {
+  id: string;
+  name: string;
+  /** Au choix (« Travail », « Perso »…), pour ranger la liste */
+  category: string;
+  status: ProjectStatus;
+  /** Noms, adresses mail, mots à reconnaître dans les mails, l'agenda et l'écran */
+  keywords: string[];
+  /** Courte description : de quoi il s'agit */
+  description: string;
+  /** Le rapport d'avancement, en quelques phrases */
+  progress: string;
+  /** Gilbert le réécrit tout seul tant que tu n'y as pas touché */
+  progressAuto: boolean;
+  todos: ProjectTodo[];
+  /** Les infos relevées par Gilbert, les plus récentes d'abord */
+  notes: ProjectNote[];
+  /** Ton texte libre */
+  doc: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Dernière fois qu'il t'a vu travailler dessus (écran) */
+  seenAt: number;
+}
+
+/** Une recommandation de Gilbert pour un projet (« Répondre à Paul », « Relancer… ») */
+export interface ProjectAdvice {
+  /** Stable : « écartée » le reste */
+  id: string;
+  kind: 'reply' | 'quiet' | 'prepare';
+  text: string;
+  /** Il peut rédiger un brouillon (copié dans le presse-papiers) */
+  draft: boolean;
+}
+
+export interface ProjectView {
+  project: Project;
+  /** Part des cases cochées (0 à 100), -1 s'il n'y en a pas */
+  percent: number;
+  advice: ProjectAdvice[];
+  events: { when: string; title: string }[];
+  mails: { from: string; summary: string; when: string }[];
+}
+
+export type ProjectOp =
+  | { type: 'add'; name: string; category: string; keywords: string; description: string }
+  | { type: 'edit'; id: string; patch: Partial<Pick<Project, 'name' | 'category' | 'status' | 'description' | 'progress' | 'doc'> & { keywords: string[] | string }> }
+  | { type: 'remove'; id: string }
+  /** Gilbert réécrit le rapport d'avancement maintenant */
+  | { type: 'report'; id: string }
+  | { type: 'todoAdd'; id: string; text: string; due: string }
+  | { type: 'todoEdit'; id: string; todoId: string; patch: Partial<Pick<ProjectTodo, 'text' | 'due' | 'done'>> }
+  | { type: 'todoRemove'; id: string; todoId: string }
+  | { type: 'noteRemove'; id: string; noteId: string }
+  | { type: 'dismiss'; id: string; adviceId: string }
+  /** Gilbert rédige le brouillon de cette recommandation et le copie */
+  | { type: 'draft'; id: string; adviceId: string };
+
+/** API de l'onglet Projets, sous `window.projects` */
+export interface ProjectsApi {
+  get(): Promise<{ projects: ProjectView[]; categories: string[]; lang: Lang }>;
+  act(op: ProjectOp): void;
+  onChange(cb: () => void): void;
 }

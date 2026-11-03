@@ -98,6 +98,14 @@ export class Assistant {
     focusing: () => boolean;
     /** Un mail important vient d'arriver (pour le carnet de bord) */
     onImportantMail?: () => void;
+    /** Un mail vient d'être trié (pour les fiches de projet) */
+    onMailTriaged?: (m: IncomingMail, summary: string, important: boolean, needsReply: boolean, deadline: { what: string; date: string } | null) => void;
+    /** Chaque quart de minute : les rappels de projet à dire maintenant (échéances, oublis) */
+    projectTick?: () => { text: string; fact: string; urgent: boolean }[];
+    /** Une ligne de la fiche du projet dont parle ce rendez-vous (vide s'il n'y en a pas) */
+    projectBrief?: (eventTitle: string) => string;
+    /** Ce qui presse dans les projets, pour le tableau de bord */
+    projectsToday?: () => { id: string; name: string; text: string; due: string; late: boolean }[];
     /** Sessions de travail du jour, pour le bilan du soir */
     focusToday?: () => { sessions: number; minutes: number };
     /** Son humeur du moment, pour sa personnalité (vide si neutre ou désactivé) */
@@ -250,6 +258,7 @@ export class Assistant {
     const tri = await triageMail(this.deps.brain, this.deps.memory.data, m, this.deps.lang());
     if (tri.importance === 'bruit') return;
     this.mailbox.add([{ ...m, summary: tri.summary, importance: tri.importance, needsReply: tri.needsReply }]);
+    this.deps.onMailTriaged?.(m, tri.summary, tri.importance === 'important', tri.needsReply, tri.deadline);
     // chaque mail arrive avec son « ! » ; seul l'important passe pendant une session de travail
     if (tri.importance !== 'important') {
       if (!this.briefing) this.notify({ text: this.t(`Nouveau mail de ${m.from} : ${tri.summary}`, `New email from ${m.from}: ${tri.summary}`, `Email mới từ ${m.from}: ${tri.summary}`), urgent: false, alert: true, transient: true });
@@ -352,6 +361,7 @@ export class Assistant {
     // pendant la préparation du brief, il dira tout d'un coup
     if (this.briefing) return;
     const now = Date.now();
+    for (const r of this.deps.projectTick?.() ?? []) this.notify({ text: r.text, fact: r.fact, urgent: r.urgent });
     if (now - this.lastReplyCheck > 3 * 3600_000) {
       this.lastReplyCheck = now;
       this.checkReplies().catch(() => {});
@@ -363,7 +373,7 @@ export class Assistant {
     // le soir, une fois, quand tu es là et qu'il n'est pas déjà en train de parler
     if (this.brief.eveningDue() && !this.telling && !this.queue.length && this.present()) {
       this.brief.eveningDone();
-      this.evening().catch(() => {});
+      this.evening().catch(() => {}).finally(() => this.rainTomorrow().catch(() => {}));
     }
     for (const e of this.calendar.events) {
       if (e.allDay || this.noticedEvents.has(e.id)) continue;
@@ -372,7 +382,7 @@ export class Assistant {
         const mins = Math.max(1, Math.round((e.start - now) / 60_000));
         const at = new Date(e.start).toLocaleTimeString(LOCALE[this.deps.lang()], { hour: '2-digit', minute: '2-digit' });
         this.notify({
-          text: this.t(`Dans ${mins} min : ${e.title}${e.location ? ` (${e.location})` : ''}.`, `In ${mins} min: ${e.title}${e.location ? ` (${e.location})` : ''}.`, `${mins} phút nữa: ${e.title}${e.location ? ` (${e.location})` : ''}.`),
+          text: this.t(`Dans ${mins} min : ${e.title}${e.location ? ` (${e.location})` : ''}.`, `In ${mins} min: ${e.title}${e.location ? ` (${e.location})` : ''}.`, `${mins} phút nữa: ${e.title}${e.location ? ` (${e.location})` : ''}.`) + (this.deps.projectBrief?.(e.title) ? ` ${this.deps.projectBrief(e.title)}` : ''),
           fact: this.t(`Rendez-vous « ${e.title} » à ${at}${e.location ? ` (${e.location})` : ''}`, `Appointment "${e.title}" at ${at}${e.location ? ` (${e.location})` : ''}`),
           urgent: true,
           pierce: true,
@@ -460,6 +470,16 @@ export class Assistant {
     return true;
   }
 
+  /** De la pluie demain en fin de journée ? Il le dit le soir, pour qu'on prenne ses dispositions */
+  private async rainTomorrow() {
+    const rain = await this.brief.rainTomorrowEvening(this.deps.memory.data.profile.city, this.deps.lang());
+    if (!rain) return;
+    this.tell(this.t(
+      `Demain en fin de journée, de la pluie est prévue dès ${rain.hour} h (${rain.prob} % de risque) : parapluie, ou pars un peu plus tôt.`,
+      `Rain is forecast tomorrow late in the day from ${rain.hour}:00 (${rain.prob}% chance): bring an umbrella, or leave a bit earlier.`,
+      `Chiều tối mai có mưa từ ${rain.hour} giờ (${rain.prob} % khả năng): nhớ mang ô, hoặc đi sớm hơn một chút.`));
+  }
+
   /** Ta journée, pour l'Accueil de la fenêtre : météo, rendez-vous, échéances, mails qui attendent */
   today(): Today {
     const now = Date.now();
@@ -479,6 +499,7 @@ export class Assistant {
       tasks: this.tasks.tasks.filter((t, _, all) => !t.done || this.tasks.doneToday().includes(t) || all.some((p) => p.id === t.parent && !p.done))
         .map((t) => ({ id: t.id, title: t.title, due: t.due, time: t.time, done: t.done, parent: t.parent })),
       waiting: this.waitingMails().map((m) => m.from),
+      projects: this.deps.projectsToday?.() ?? [],
     };
   }
 
