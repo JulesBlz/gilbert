@@ -25,6 +25,7 @@ function previewApi(): GilbertApi {
     music: async () => ({ player: '', playing: false, title: '', artist: '' }),
     focus: () => {},
     played: () => {},
+    said: () => {},
     micPermission: async () => true,
     transcribe: async () => '',
     quit: () => {},

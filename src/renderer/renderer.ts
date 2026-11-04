@@ -20,6 +20,7 @@ import { AcornField } from './acorns';
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const bubble = new Bubble(document.getElementById('bubble')!);
+bubble.onSpoken = (text) => api.said(text);
 
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
@@ -269,6 +270,12 @@ async function main() {
         break;
       case 'rain':
         if (cmd.acorns > 0) setTimeout(() => acorns.rain(cmd.acorns), 600);
+        break;
+      case 'progress':
+        // pas par-dessus une discussion ou une autre bulle ; la même barre se met à jour
+        if (asking || chat.open || (bubble.visible && offer !== cmd.id)) break;
+        offer = cmd.pct >= 100 ? null : cmd.id;
+        pet.whisperProgress(cmd.label, cmd.pct);
         break;
       case 'offer': {
         // une aide discrète : il ne bouge pas ; la bulle s'en va si on ne la prend pas

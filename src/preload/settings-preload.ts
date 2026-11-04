@@ -20,6 +20,8 @@ const chat: ChatApi = {
   get: (id) => ipcRenderer.invoke('chat:get', id),
   create: () => ipcRenderer.invoke('chat:create'),
   remove: (id) => ipcRenderer.send('chat:remove', id),
+  history: () => ipcRenderer.invoke('said:list'),
+  clearHistory: () => ipcRenderer.send('said:clear'),
   send: (id, text) => ipcRenderer.send('chat:send', id, text),
   cancel: (id) => ipcRenderer.send('chat:cancel', id),
   onEvent: (cb) => { ipcRenderer.on('chat:event', (_e, ev) => cb(ev)); },

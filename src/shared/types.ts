@@ -310,6 +310,8 @@ export type Command =
    * `ttl` : durée avant qu'elle s'en aille (0 : elle reste jusqu'à un bouton ou qu'on attrape Gilbert) ;
    * `long` : un long texte, bulle plus large.
    */
+  /** Une barre de progression dans la bulle (téléchargement) : le même texte, la barre qui avance */
+  | { type: 'progress'; id: string; label: string; pct: number }
   | { type: 'offer'; id: string; text: string; actions: { label: string; value: string }[]; ttl?: number; thinking?: boolean; long?: boolean }
   /** Humeur du moment (0 = boude, 1 = ravi) */
   | { type: 'mood'; value: number }
@@ -333,6 +335,8 @@ export interface GilbertApi {
   focus(minutes: number | 'stop'): void;
   /** Interaction avec lui (clic, jeu) : nourrit son humeur */
   played(kind: 'click' | 'throw' | 'chat'): void;
+  /** Ce que Gilbert vient de dire dans une bulle (pour l'historique) */
+  said(text: string): void;
   /** Note vocale : l'autorisation du micro (macOS), puis le son (16 kHz, mono) à transcrire */
   micPermission(): Promise<boolean>;
   transcribe(pcm: Float32Array): Promise<string>;
@@ -488,11 +492,17 @@ export interface ChatSummary {
 }
 
 /** API de l'onglet Discussion, sous `window.chat` */
+/** Une phrase dite par Gilbert dans une bulle */
+export interface SaidEntry { at: number; text: string }
+
 export interface ChatApi {
   list(): Promise<ChatSummary[]>;
   get(id: string): Promise<ChatThread | null>;
   create(): Promise<ChatThread>;
   remove(id: string): void;
+  /** Tout ce que Gilbert a dit dans ses bulles, le plus récent d'abord */
+  history(): Promise<SaidEntry[]>;
+  clearHistory(): void;
   /** Pose une question dans cette discussion ; la réponse arrive par `onEvent` */
   send(id: string, text: string): void;
   cancel(id: string): void;

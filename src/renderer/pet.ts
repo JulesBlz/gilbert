@@ -737,6 +737,12 @@ export class Pet {
     this.bubble.say(text, { actions, onDone, long });
   }
 
+  /** Une barre de progression dans une bulle discrète (téléchargement) */
+  whisperProgress(label: string, pct: number) {
+    if (this.dragging || this.state === 'fall' || this.state === 'fly' || this.state === 'jump') return;
+    this.bubble.progress(label, pct);
+  }
+
   /** Petits points discrets (il réfléchit sans bouger), avant une bulle discrète */
   whisperThinking() {
     if (this.dragging || this.state === 'fall' || this.state === 'fly' || this.state === 'jump') return;

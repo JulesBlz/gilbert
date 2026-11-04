@@ -276,13 +276,18 @@ export function factLines(f: BriefFacts, lang: Lang) {
   return lines;
 }
 
-/** Nettoie la sortie du modèle : une bulle par ligne, sans puces ni markdown */
+/** Étiquette que le modèle recopie de la consigne : « Bulle 1 : », « [Bubble 2] », « (bulle) »… */
+const LABEL = String.raw`[\[(<]?\s*(?:bulles?|bubbles?)\s*\d*\s*[\])>]?`;
+const LABEL_START = new RegExp(String.raw`^${LABEL}\s*[:：.\-–—)]*\s*`, 'i');
+const LABEL_END = new RegExp(String.raw`\s*[:：.\-–—(\[]*\s*${LABEL}\s*$`, 'i');
+
+/** Nettoie la sortie du modèle : une bulle par ligne, sans puces, markdown ni étiquettes recopiées */
 export function toBubbles(text: string) {
   return text
-    .split('\n')
-    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/\*\*|__|`/g, '').replace(/^["«]\s*|\s*["»]$/g, '').trim())
-    .filter((l) => l.length > 1 && !/^(bulle|bubble)\s*\d*\s*:?$/i.test(l))
-    .map((l) => l.replace(/^(bulle|bubble)\s*\d+\s*:\s*/i, ''))
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\*\*|__|`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/^["«“]\s*|\s*["»”]$/g, '').trim())
+    .map((l) => l.replace(LABEL_START, '').replace(LABEL_END, '').replace(/^["«“]\s*|\s*["»”]$/g, '').trim())
+    .filter((l) => l.length > 1)
     .slice(0, MAX_BUBBLES);
 }
 

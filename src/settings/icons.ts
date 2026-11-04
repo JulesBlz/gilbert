@@ -63,6 +63,7 @@ export const TINY = {
   plus: ['...X...', '...X...', '...X...', 'XXXXXXX', '...X...', '...X...', '...X...'],
   trash: ['...XXX...', 'XXXXXXXXX', '.XXXXXXX.', '.X.X.X.X.', '.X.X.X.X.', '.X.X.X.X.', '.X.X.X.X.', '.XXXXXXX.'],
   copy: ['XXXXXX...', 'X....X...', 'X....X...', 'X..XXXXXX', 'X..X....X', 'XXXX....X', '...X....X', '...X....X', '...XXXXXX'],
+  clock: ['..XXXXX..', '.X.....X.', 'X...X...X', 'X...X...X', 'X...XXX.X', 'X.......X', '.X.....X.', '..XXXXX..'],
   lock: ['..XXXX..', '.X....X.', '.X....X.', 'XXXXXXXX', 'X......X', 'X..XX..X', 'X..XX..X', 'X......X', 'XXXXXXXX'],
   close: ['XX.....XX', '.XX...XX.', '..XX.XX..', '...XXX...', '....X....', '...XXX...', '..XX.XX..', '.XX...XX.', 'XX.....XX'],
 } as const;

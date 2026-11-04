@@ -8,6 +8,7 @@ const api: GilbertApi = {
   music: (cmd: string) => ipcRenderer.invoke('music', cmd),
   focus: (minutes: number | 'stop') => ipcRenderer.send('focus', minutes),
   played: (kind: string) => ipcRenderer.send('played', kind),
+  said: (text: string) => ipcRenderer.send('said:add', text),
   micPermission: () => ipcRenderer.invoke('voice:permission'),
   transcribe: (pcm: Float32Array) => ipcRenderer.invoke('voice:transcribe', pcm),
   quit: () => ipcRenderer.send('app:quit'),

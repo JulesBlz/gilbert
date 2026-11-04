@@ -60,7 +60,11 @@ export class Bubble {
   private hideTimer: number | null = null;
   private dots: number | null = null;
   private sticky = false;
+  private bar: { label: HTMLElement; fill: HTMLElement; num: HTMLElement } | null = null;
   visible = false;
+  /** Appelé avec tout ce que la bulle dit, même si on la ferme avant la fin : c'est l'historique */
+  onSpoken: ((text: string) => void) | null = null;
+  private unsaid: string | null = null;
 
   constructor(private el: HTMLElement) {
     this.text = el.querySelector('.bubble-text')!;
@@ -73,6 +77,8 @@ export class Bubble {
   }
 
   say(message: string, opts: SayOptions = {}) {
+    this.flushStream();
+    if (message.trim()) this.onSpoken?.(message.trim());
     this.open();
     this.el.classList.toggle('long', Boolean(opts.long));
     this.setActions(opts.actions);
@@ -120,6 +126,7 @@ export class Bubble {
 
   /** Bulle alimentée au fil de l'eau (réponse du cerveau), écrite à vitesse de lecture */
   stream(opts: SayOptions = {}): Stream {
+    this.flushStream();
     this.open();
     this.setActions();
     const shown = document.createElement('span');
@@ -147,12 +154,49 @@ export class Bubble {
     tick();
 
     return {
-      push: (t) => queue.push(...t),
-      end: () => { ended = true; },
+      push: (t) => { queue.push(...t); this.unsaid = (this.unsaid ?? '') + t; },
+      end: () => { ended = true; this.flushStream(); },
     };
   }
 
+  /**
+   * Une barre de progression (un téléchargement) : le texte et la barre sont posés une fois, puis seule la barre avance
+   * (au lieu de réécrire la bulle lettre à lettre à chaque pourcent). À 100 %, la bulle s'en va ; si les nouvelles
+   * s'arrêtent, elle s'en va aussi.
+   */
+  progress(label: string, pct: number) {
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    if (!this.bar || !this.visible || !this.text.contains(this.bar.fill)) {
+      this.open();
+      this.setActions();
+      const text = document.createElement('span');
+      const fill = document.createElement('i');
+      const track = document.createElement('span');
+      track.className = 'track';
+      track.append(fill);
+      const num = document.createElement('b');
+      const row = document.createElement('div');
+      row.className = 'bubble-bar';
+      row.append(track, num);
+      this.text.replaceChildren(text, row);
+      this.bar = { label: text, fill, num };
+    }
+    this.clearTimers();
+    this.bar.label.textContent = label;
+    this.bar.fill.style.width = `${p}%`;
+    this.bar.num.textContent = `${p} %`;
+    this.hideTimer = window.setTimeout(() => this.hide(), p >= 100 ? 1200 : 10_000);
+  }
+
+  /** Une réponse en cours d'écriture entre dans l'historique, finie ou coupée */
+  private flushStream() {
+    const t = this.unsaid?.trim();
+    this.unsaid = null;
+    if (t) this.onSpoken?.(t);
+  }
+
   hide() {
+    this.flushStream();
     if (!this.visible) return;
     this.clearTimers();
     this.sticky = false;

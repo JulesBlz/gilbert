@@ -16,7 +16,7 @@ Gilbert offers three "brains" at install time and in Settings > His brain. This 
 | Family | Local sizes | Licence | Official languages | Verdict |
 |---|---|---|---|---|
 | **Gemma 4** (Google DeepMind, Apr-Jun 2026) | E2B (~3 GB), E4B (~5 GB), 12B (~7 GB), larger ones (26B MoE, 31B) | Apache 2.0 | 140+ languages, including Vietnamese | **Chosen**: the only family covering all three languages at every size, with vision (and audio on E2B / E4B). |
-| **Ministral 3** (Mistral AI, Dec 2025) | 3B (~2 GB), 8B (~5-6 GB), 14B (~9 GB) | Apache 2.0 | ~11 languages (very good French, **no Vietnamese announced**) | Excellent for French alone; discarded because Gilbert also speaks Vietnamese. Worth revisiting for a French-only edition. |
+| **Ministral 3** (Mistral AI, Dec 2025) | 3B (~2 GB), 8B (~5-6 GB), 14B (~9 GB) | Apache 2.0 | ~11 languages (very good French, **no Vietnamese announced**) | Excellent for French; discarded because Gilbert also speaks Vietnamese. It was tried as an extra option (3B, 8B, 14B tiers) and removed: in real use it did not work well enough. |
 | **Llama** (Meta): 3.2 3B, 3.1 8B | 3B, 8B | Meta licence (usage terms) | English, French, German, Italian, Portuguese, Hindi, Spanish, Thai (**no Vietnamese**) | Older, more restrictive licence. Discarded. |
 | **Llama 4 Scout** | 109B (MoE) | Meta licence | 12 languages including Vietnamese | Far too large for a desktop computer. Discarded. |
 

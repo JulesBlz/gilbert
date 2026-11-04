@@ -93,8 +93,10 @@ function eyesOf(data: ImageData, atlas: Atlas, index: number): Eyes | null {
 function allEyes(data: ImageData, atlas: Atlas) {
   const out: Record<string, Eyes | null> = {};
   for (const [name, i] of Object.entries(atlas.frames)) out[name] = eyesOf(data, atlas, i);
-  // les yeux fermés de face : même tête que la pose assise
+  // les yeux fermés ou tournés (clignement, rire, réflexion) : même tête que la pose assise
   for (const name of ['blink', 'happy']) out[name] ??= out.idle0;
+  // la réflexion (yeux tournés vers le haut) : les yeux y sont trompeurs, on garde ceux de la pose assise
+  out.think = out.idle0;
   // le rire (yeux plissés) : la tête de la pose assise, décalée comme le haut de sa tête
   const top = (i: number) => {
     const S = atlas.size, fx = (i % atlas.cols) * S, fy = Math.floor(i / atlas.cols) * S;

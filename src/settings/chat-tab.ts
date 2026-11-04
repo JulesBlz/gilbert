@@ -2,7 +2,7 @@
 // foncée), puis Gilbert, tourné vers le fil. À droite, le fil : ses bulles pointent vers lui, les messages
 // s'empilent en bas, près de lui et de la saisie. Entrée envoie, Échap arrête ce qu'il écrit.
 
-import { LOCALE, type ChatApi, type ChatMessage, type ChatSummary, type ChatThread, type Lang } from '../shared/types';
+import { LOCALE, type ChatApi, type ChatMessage, type SaidEntry, type ChatSummary, type ChatThread, type Lang } from '../shared/types';
 import { tiny } from './icons';
 
 const T = {
@@ -10,19 +10,19 @@ const T = {
     untitled: 'Nouvelle discussion', newer: 'Nouvelle discussion', greeting: 'Salut ! On parle de quoi ?',
     placeholder: 'Écris à Gilbert…', writing: 'Gilbert écrit… (Échap pour arrêter)', del: 'Supprimer', sure: 'Sûr ?', copy: 'Copier', copied: 'Copié',
     suggestions: ['Qu’est-ce que j’ai à faire aujourd’hui ?', 'Aide-moi à écrire un message', 'Cherche une idée de week-end'],
-    none: 'Aucune discussion.', error: 'Oups : ', today: 'Aujourd’hui', yesterday: 'Hier', earlier: 'Avant',
+    none: 'Aucune discussion.', history: 'Historique', historyHint: 'Tout ce que Gilbert a dit dans ses bulles, même quand tu les as fermées.', historyEmpty: 'Rien pour l’instant : ses prochaines bulles apparaîtront ici.', clear: 'Tout effacer', error: 'Oups : ', today: 'Aujourd’hui', yesterday: 'Hier', earlier: 'Avant',
   },
   en: {
     untitled: 'New chat', newer: 'New chat', greeting: 'Hi! What shall we talk about?',
     placeholder: 'Write to Gilbert…', writing: 'Gilbert is writing… (Esc to stop)', del: 'Delete', sure: 'Sure?', copy: 'Copy', copied: 'Copied',
     suggestions: ['What do I have to do today?', 'Help me write a message', 'Find me a weekend idea'],
-    none: 'No chats.', error: 'Oops: ', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier',
+    none: 'No chats.', history: 'History', historyHint: 'Everything Gilbert said in his bubbles, even the ones you closed.', historyEmpty: 'Nothing yet: his next bubbles will show up here.', clear: 'Clear all', error: 'Oops: ', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier',
   },
   vi: {
     untitled: 'Cuộc trò chuyện mới', newer: 'Cuộc trò chuyện mới', greeting: 'Chào cậu! Mình nói chuyện gì nào?',
     placeholder: 'Viết cho Gilbert…', writing: 'Gilbert đang viết… (Esc để dừng)', del: 'Xóa', sure: 'Chắc chưa?', copy: 'Sao chép', copied: 'Đã chép',
     suggestions: ['Hôm nay tớ phải làm gì?', 'Giúp tớ viết một tin nhắn', 'Tìm ý tưởng cho cuối tuần'],
-    none: 'Chưa có cuộc trò chuyện.', error: 'Ôi: ', today: 'Hôm nay', yesterday: 'Hôm qua', earlier: 'Trước đó',
+    none: 'Chưa có cuộc trò chuyện.', history: 'Lịch sử', historyHint: 'Mọi điều Gilbert đã nói trong bong bóng, kể cả khi cậu đã đóng.', historyEmpty: 'Chưa có gì: bong bóng tiếp theo sẽ hiện ở đây.', clear: 'Xóa hết', error: 'Ôi: ', today: 'Hôm nay', yesterday: 'Hôm qua', earlier: 'Trước đó',
   },
 };
 
@@ -49,9 +49,14 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
   let ticker: ReturnType<typeof setInterval> | null = null;
 
   const newBtn = h<HTMLButtonElement>('button', { type: 'button', className: 'chat-new' });
-  const list = h('div', { className: 'chat-list' });
-  const msgs = h('div', { className: 'chat-msgs' });
   const input = h<HTMLTextAreaElement>('textarea', { rows: 1, className: 'chat-input' });
+  const histBtn = h<HTMLButtonElement>('button', { type: 'button', className: 'chat-new chat-hist' });
+  const list = h('div', { className: 'chat-list' });
+  const hist = h('div', { className: 'chat-hist-view' });
+  hist.hidden = true;
+  const compose = h('div', { className: 'chat-compose' }, input);
+  let showingHistory = false;
+  const msgs = h('div', { className: 'chat-msgs' });
 
   const bubble = (m: ChatMessage) => {
     const mine = m.role === 'user';
@@ -101,7 +106,7 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
         if (wasCurrent) { current = null; const next = threads.find((x) => x.count > 0); if (next) await select(next.id); else await fresh(); }
         else drawList();
       });
-      return h('div', { className: `conv${current?.id === c.id ? ' on' : ''}` }, open, del);
+      return h('div', { className: `conv${current?.id === c.id && !showingHistory ? ' on' : ''}` }, open, del);
     });
     list.replaceChildren(...rows);
   };
@@ -114,6 +119,7 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
 
   const labels = () => {
     newBtn.replaceChildren(tiny('plus'), t().newer);
+    histBtn.replaceChildren(tiny('clock'), t().history);
     input.placeholder = typing ? t().writing : t().placeholder;
   };
 
@@ -134,7 +140,50 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
     scroll();
   };
 
+  /** L'historique : les bulles de Gilbert, la plus récente en haut, par jour */
+  const setView = (history: boolean) => {
+    showingHistory = history;
+    msgs.hidden = history;
+    compose.hidden = history;
+    hist.hidden = !history;
+    histBtn.classList.toggle('on', history);
+    if (history) list.querySelectorAll('.conv.on').forEach((c) => c.classList.remove('on'));
+  };
+
+  async function drawHistory() {
+    const items: SaidEntry[] = await chat.history().catch(() => []);
+    const clear = h<HTMLButtonElement>('button', { type: 'button', className: 'hist-clear', textContent: t().clear });
+    clear.addEventListener('click', () => {
+      if (!clear.classList.contains('sure')) {
+        clear.classList.add('sure');
+        clear.textContent = t().sure;
+        setTimeout(() => { clear.classList.remove('sure'); clear.textContent = t().clear; }, 3000);
+        return;
+      }
+      chat.clearHistory();
+      void drawHistory();
+    });
+    const rows: HTMLElement[] = [h('p', { className: 'hist-hint' }, t().historyHint)];
+    if (!items.length) rows.push(h('p', { className: 'hist-empty' }, t().historyEmpty));
+    let day = '';
+    for (const it of items) {
+      const g = `${group(it.at)}${group(it.at) === t().earlier ? ` · ${when(it.at, { day: 'numeric', month: 'long' })}` : ''}`;
+      if (g !== day) { day = g; rows.push(h('h3', { className: 'hist-day' }, g)); }
+      const copy = h<HTMLButtonElement>('button', { type: 'button', className: 'copy', title: t().copy }, tiny('copy'));
+      copy.addEventListener('click', () => {
+        navigator.clipboard?.writeText(it.text).catch(() => {});
+        copy.title = t().copied;
+        copy.classList.add('done');
+        setTimeout(() => { copy.title = t().copy; copy.classList.remove('done'); }, 1200);
+      });
+      rows.push(h('div', { className: 'hist-item' }, h('small', {}, when(it.at, { hour: '2-digit', minute: '2-digit' })), h('span', { className: 'hist-text' }, it.text), copy));
+    }
+    if (items.length) rows.push(clear);
+    hist.replaceChildren(...rows);
+  }
+
   async function select(id: string) {
+    setView(false);
     current = await chat.get(id);
     threads = await chat.list();
     drawList();
@@ -143,6 +192,7 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
   }
 
   async function fresh() {
+    setView(false);
     // une discussion vide existe déjà : on s'y met plutôt que d'en empiler
     const empty = threads.find((s) => s.count === 0);
     if (empty) return select(empty.id);
@@ -242,11 +292,12 @@ export function mountChat(el: HTMLElement, chat: ChatApi, lang: () => Lang) {
     }
   });
   newBtn.addEventListener('click', () => fresh());
+  histBtn.addEventListener('click', async () => { setView(true); await drawHistory(); });
 
   el.classList.add('chatbox');
   el.replaceChildren(
-    h('aside', { className: 'chat-side' }, newBtn, list, h('div', { className: 'chat-gilbert' })),
-    h('section', { className: 'chat-main' }, msgs, h('div', { className: 'chat-compose' }, input)),
+    h('aside', { className: 'chat-side' }, newBtn, histBtn, list, h('div', { className: 'chat-gilbert' })),
+    h('section', { className: 'chat-main' }, msgs, hist, compose),
   );
   labels();
   drawThread();

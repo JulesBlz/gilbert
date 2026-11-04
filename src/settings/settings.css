@@ -609,3 +609,28 @@ main { box-shadow: 0 0 0 var(--px) var(--drop); }
 /* boutique : « Sélectionné » est le même bouton, plein */
 .item button.on, .item button.on:hover { color: var(--card); background: var(--ink); box-shadow: none; }
 .item button.on[aria-pressed] { cursor: default; }
+
+/* les volets repliés (« Pour mieux te connaître »…) : le même titre que les autres cartes (carré orange, même taille), avec une flèche à droite */
+section.fold summary { display: flex; align-items: center; gap: 8px; font-size: var(--fs-title); line-height: 30px; margin: 0 0 var(--sp-3); }
+section.fold summary::before, section.fold details[open] > summary::before { content: ''; width: 12px; height: 12px; background: var(--accent); box-shadow: 4px 4px 0 var(--drop); flex: none; color: inherit; }
+section.fold summary::after { content: '▸'; margin-left: auto; color: var(--muted); font-size: var(--fs-l); }
+section.fold details[open] > summary::after { content: '▾'; }
+section.fold details { margin-bottom: 0; }
+
+/* historique des bulles : une liste simple, par jour, sans boîtes */
+.chat-hist { margin-top: -4px; }
+.chat-hist.on { color: var(--ink); }
+.chat-hist-view { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-2) var(--sp-3) var(--sp-3) 14px; scrollbar-width: none; display: flex; flex-direction: column; gap: 2px; }
+.chat-hist-view[hidden] { display: none; }
+.hist-hint, .hist-empty { margin: 0 0 var(--sp-2); color: var(--muted); font-size: var(--fs-xs); }
+.hist-day { margin: var(--sp-3) 0 var(--sp-1); font-size: var(--fs-title); line-height: 30px; font-weight: 400; }
+.hist-item { display: grid; grid-template-columns: 48px 1fr auto; gap: var(--sp-2); align-items: start; padding: 4px 0; }
+.hist-item small { color: var(--muted); font-size: var(--fs-xs); line-height: var(--lh); }
+.hist-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.hist-item .copy { visibility: hidden; padding: 0 2px; background: transparent; box-shadow: none; color: var(--muted); }
+.hist-item .copy svg { fill: currentColor; display: block; }
+.hist-item:hover .copy { visibility: visible; }
+.hist-item .copy:hover { color: var(--ink); background: transparent; box-shadow: none; }
+.hist-clear { align-self: flex-start; margin-top: var(--sp-3); padding: 2px 0; background: transparent; box-shadow: none; color: var(--muted); font-size: var(--fs-xs); }
+.hist-clear:hover, .hist-clear.sure { color: var(--danger); background: transparent; box-shadow: none; }
+.chat-msgs[hidden], .chat-compose[hidden] { display: none; }

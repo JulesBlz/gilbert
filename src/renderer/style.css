@@ -181,3 +181,9 @@ html[lang="vi"] .bubble, html[lang="vi"] .chat {
 .chat-more:hover, .chat-mic:hover { background: none; box-shadow: none; }
 /* la queue de la bulle, en sombre */
 :root[data-theme="dark"] .bubble-tail { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4' shape-rendering='crispEdges'%3E%3Cpath fill='%23f1e8d4' d='M0 0h1v1H0zM7 0h1v1H7zM1 1h1v1H1zM6 1h1v1H6zM2 2h1v1H2zM5 2h1v1H5zM3 3h2v1H3z'/%3E%3Cpath fill='%2326211a' d='M1 0h6v1H1zM2 1h4v1H2zM3 2h2v1H3z'/%3E%3C/svg%3E"); }
+
+/* une barre de progression dans la bulle (téléchargement) */
+.bubble-bar { display: flex; align-items: center; gap: 8px; margin-top: 6px; min-width: 220px; }
+.bubble-bar .track { flex: 1; height: 12px; background: var(--bg); box-shadow: inset 0 0 0 var(--bw) var(--ink); display: block; }
+.bubble-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.bubble-bar b { font-weight: 400; min-width: 48px; text-align: right; }

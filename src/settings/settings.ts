@@ -340,6 +340,8 @@ function previewChat(): ChatApi {
       setTimeout(() => listener?.({ chat: id, kind: 'done', text: reply }), 700);
       t?.messages.push({ role: 'gilbert', text: reply, at: Date.now() });
     },
+    history: async () => [{ at: Date.now() - 60_000, text: 'Tu as un rendez-vous à 15 h, pense à partir un peu avant.' }, { at: Date.now() - 86_400_000, text: 'Il pleuvra demain en fin de journée.' }],
+    clearHistory: () => {},
     cancel: () => {},
     onEvent: (cb) => { listener = cb; },
   };
@@ -772,18 +774,19 @@ function renderGeneral() {
   const b = state.brain;
   const brainText = brainLine(b);
   const tb = t.brains;
-  const rows = state.brains.map((c) => {
+  const rows: HTMLElement[] = [];
+  state.brains.forEach((c) => {
     const go = Math.round(c.size / 1e8) / 10;
     const tight = state.ramGB < c.minRamGB;
     const act = c.active ? h('span', { className: 'tag on' }, tb.active)
       : c.pulling !== null ? h('span', { className: 'tag' }, tb.pulling(Math.round(c.pulling * 100)))
       : button(c.downloaded ? tb.use : tb.get, () => api.action('useBrain', c.id), false);
-    return h('div', { className: `brain-row${c.active ? ' on' : ''}`, title: tb.hints[c.tier] },
+    rows.push(h('div', { className: `brain-row${c.active ? ' on' : ''}`, title: tb.hints[c.tier] },
       h('i', { className: 'radio' }),
       h('span', { className: 'name' }, h('b', {}, tb.names[c.tier]), h('small', {}, c.label)),
       ...(c.recommended ? [h('span', { className: 'tag' }, tb.recommended)] : tight ? [h('span', { className: 'tag warn' }, tb.tight(state.ramGB))] : []),
       h('span', { className: 'meta' }, `${go} Go`),
-      act);
+      act));
   });
   const brain = h('section', {}, h('h2', {}, t.brain), h('p', { className: 'empty' }, brainText),
     ...(rows.length ? [h('div', { className: 'brain-list' }, ...rows)] : []),

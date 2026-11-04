@@ -15,6 +15,7 @@ import { describeReminder, parseReminder, REMIND } from './brain/remind';
 import { aboutMail, mailContext, mailQuery } from './mailbox';
 import { MemoryStore } from './memory';
 import { ChatStore } from './chats';
+import { SaidStore } from './said';
 import { MENU } from '../shared/menu';
 import { onPageWindow, openSettings, pageWindow } from './windows';
 import { Assistant } from './assistant';
@@ -125,7 +126,7 @@ function prefsState(): PrefsState {
     settings, quiet: isQuiet(), vision: { supported: visionSupported(), permission: permission() },
     brain: brain.status, brains: brainChoices(), ramGB: Math.round(ramGB()), mail: st?.mail.state === 'on', calendar: st?.calendar.state === 'on',
     city: Boolean(memory.data.profile.city), focusEnds: focus?.active?.endsAt ?? 0,
-    today: assistant?.today() ?? { name: '', weather: '', events: [], tasks: [], waiting: [] },
+    today: assistant?.today() ?? { name: '', weather: '', events: [], tasks: [], waiting: [], projects: [] },
     wallet: journal?.wallet ?? { acorns: 0 },
   };
 }
@@ -463,7 +464,7 @@ ipcMain.handle('voice:transcribe', async (_e, pcm: Float32Array) => {
     const pct = Math.floor(p * 100);
     if (pct === shown || pct % 5) return;
     shown = pct;
-    send({ type: 'offer', id: 'voice-download', text: say3(`Je télécharge mes oreilles (une seule fois) : ${pct} %`, `Downloading my ears (just once): ${pct}%`, `Tớ đang tải đôi tai (chỉ một lần): ${pct} %`), actions: [], ttl: 8000 });
+    send({ type: 'progress', id: 'voice-download', label: say3('Je télécharge mes oreilles (une seule fois)', 'Downloading my ears (just once)', 'Tớ đang tải đôi tai (chỉ một lần)'), pct });
   });
 });
 ipcMain.on('played', (_e, kind: 'click' | 'throw' | 'chat') => { if (settings.moods) mood.played(kind); });
@@ -847,9 +848,13 @@ async function answer(id: number, text: string, emit: (ev: BrainEvent) => void, 
 // ---------- l'onglet Discussion ----------
 
 let chats: ChatStore;
+let said: SaidStore;
 /** Les questions en cours dans l'onglet Discussion : discussion → numéro de la question */
 const chatAsks = new Map<string, number>();
 let chatAskId = 1_000_000;
+ipcMain.on('said:add', (_e, text: unknown) => { if (typeof text === 'string') said?.add(text); });
+ipcMain.handle('said:list', () => said?.list() ?? []);
+ipcMain.on('said:clear', () => said?.clear());
 ipcMain.handle('chat:list', () => chats.list());
 ipcMain.handle('chat:get', (_e, id: string) => chats.get(id));
 ipcMain.handle('chat:create', () => chats.create());
@@ -881,7 +886,7 @@ let updating = false;
 async function applyUpdate(u: Update) {
   updating = true;
   try {
-    const zip = await download(u, (pct) => send({ type: 'offer', id: 'update-download', text: say3(`Je télécharge ma nouvelle version : ${pct} %`, `Downloading my new version: ${pct}%`, `Tớ đang tải bản mới: ${pct} %`), actions: [], ttl: 8000 }));
+    const zip = await download(u, (pct) => send({ type: 'progress', id: 'update-download', label: say3('Je télécharge ma nouvelle version', 'Downloading my new version', 'Tớ đang tải bản mới'), pct }));
     send({ type: 'offer', id: 'update-install', text: say3('Je m’installe… je reviens tout de suite.', 'Installing myself… back in a moment.', 'Tớ đang cài… quay lại ngay.'), actions: [], ttl: 20_000 });
     install(u, zip);
     saveSettings(settings, true);
@@ -958,6 +963,7 @@ if (!app.requestSingleInstanceLock()) {
       update({ owned: settings.owned.filter((id) => !(id in RETIRED)), skin: { fur: settings.skin.fur in RETIRED ? 'gray' : settings.skin.fur, accessory: settings.skin.accessory in RETIRED ? '' : settings.skin.accessory } });
     }
     chats = new ChatStore();
+    said = new SaidStore();
     journal.on('rain', (acorns: number) => send({ type: 'rain', acorns }));
     journal.on('change', (d) => {
       pageWindow('settings')?.webContents.send('journal:change', d);
