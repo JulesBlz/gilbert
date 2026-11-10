@@ -30,6 +30,7 @@ import { MessageBadges } from './messages';
 import { FRESH, desktopHome, desktopSupported, finishInstall, moveToDesktop, setHomeIcon } from './desktop';
 import { ProjectStore, type Sources } from './projects';
 import { projectIdea, projectReport, screenInsight } from './brain/projects';
+import { NEWS } from './news';
 import { checkForUpdate, download, install, type Update } from './updater';
 import { itemById, RETIRED } from '../shared/skins';
 import { splitTask, todoDone, todoSplit, todoToAdd } from './todo';
@@ -473,6 +474,31 @@ ipcMain.handle('music', (_e, cmd: 'status' | 'play' | 'pause' | 'next' | 'previo
   markTried('music');
   return musicCommand(cmd);
 });
+/** Déjà proposés (pour ne pas les redonner à « autres idées ») */
+let suggested: string[] = [];
+ipcMain.handle('music:suggest', async (_e, request: unknown) => {
+  if (typeof request !== 'string' || brain.status.state !== 'ready') return [];
+  const en = settings.lang !== 'fr';
+  const avoid = suggested.length ? (en ? ` Not these: ${suggested.slice(-8).join('; ')}.` : ` Pas ceux-ci : ${suggested.slice(-8).join(' ; ')}.`) : '';
+  const out = await brain.compose(en
+    ? `Your human asks: "${request.slice(0, 200)}". Suggest 3 real, well-known songs that fit. One per line, exactly "Title - Artist", nothing else. Only songs you are sure exist.${avoid}`
+    : `Ton humain demande : « ${request.slice(0, 200)} ». Propose 3 vrais morceaux connus qui conviennent. Un par ligne, exactement « Titre - Artiste », rien d’autre. Seulement des morceaux dont tu es sûr qu’ils existent.${avoid}`, 120);
+  const songs = (out ?? '').split(/\r?\n/).map((l) => l.replace(/\*\*|__|`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/^["«“]\s*|\s*["»”]$/g, '').trim())
+    .map((l) => /^(.+?)\s+[-–—]\s+(.+)$/.exec(l))
+    .filter((m): m is RegExpExecArray => Boolean(m))
+    .map((m) => ({ title: m[1].replace(/^["«“]|["»”]$/g, '').trim().slice(0, 80), artist: m[2].replace(/["»”]$/g, '').trim().slice(0, 60) }))
+    .filter((s) => s.title && s.artist)
+    .slice(0, 3);
+  suggested.push(...songs.map((s) => `${s.title} - ${s.artist}`));
+  suggested = suggested.slice(-24);
+  return songs;
+});
+ipcMain.on('music:open', (_e, query: unknown) => {
+  if (typeof query !== 'string' || !query.trim()) return;
+  const q = encodeURIComponent(query.trim().slice(0, 160));
+  // l'appli Spotify si elle est là, sinon le site
+  shell.openExternal(`spotify:search:${q}`).catch(() => shell.openExternal(`https://open.spotify.com/search/${q}`).catch(() => {}));
+});
 // ce que seul Gilbert voit : on l'a fait descendre en tirant sa queue
 ipcMain.on('tried', (_e, key: string) => { if (key === 'hide') markTried('hide'); });
 /** Où est la fenêtre de Gilbert, et quel onglet y est affiché : il s'assoit sur son bord du haut, ou sur la branche pour discuter */
@@ -899,6 +925,20 @@ async function applyUpdate(u: Update) {
   }
 }
 
+/** Au premier lancement après une mise à jour : une ou deux phrases sur ce qui a changé */
+function announceNews(wasInstalled: boolean) {
+  const v = app.getVersion();
+  if (!app.isPackaged || settings.seenVersion === v) return;
+  const note = NEWS[v];
+  const upgraded = settings.seenVersion !== '' || wasInstalled;
+  if (note && upgraded) {
+    // pas pendant une réunion, un mode calme ou une session de concentration : on réessaiera au prochain lancement
+    if (isQuiet() || meeting || focus.active) return;
+    assistant.tell(note[settings.lang]);
+  }
+  update({ seenVersion: v });
+}
+
 /** Une nouvelle version publiée sur GitHub ? On le propose (une fois par lancement et par version) */
 async function lookForUpdate() {
   if (!settings.updates || updating || !desktopSupported()) return;
@@ -928,6 +968,8 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.whenReady().then(() => {
     settings = loadSettings();
+    // déjà installée avant ce lancement : on lui annoncera les nouveautés (pas à une toute première installation)
+    const wasInstalled = settings.installed;
     // ouverte depuis l'installeur : elle se copie sur le bureau et s'y relance, sans rien démarrer ici
     if (moveToDesktop()) {
       app.exit(0);
@@ -1071,6 +1113,7 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     createTray();
     // une nouvelle version ? (un peu après le démarrage, puis toutes les 6 h)
+    setTimeout(() => announceNews(wasInstalled), 20_000);
     setTimeout(() => void lookForUpdate(), 45_000);
     setInterval(() => void lookForUpdate(), 6 * 3600_000);
     // sa fenêtre s'ouvre : il saute s'asseoir sur son bord du haut (le panneau est à 6 px du bord

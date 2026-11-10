@@ -148,6 +148,13 @@ export const en: Lines = {
   musicPaused: ['Paused. Sweet silence.', 'Music paused.'],
   musicPlaying: ['And we’re back: {track}.', 'Music!'],
   musicNow: ['Right now: {track}.', 'That’s {track}.'],
+  musicBtnPause: ['Pause'],
+  musicBtnPlay: ['Resume'],
+  musicBtnNext: ['Next'],
+  musicBtnPrev: ['Previous'],
+  musicBtnMore: ['More ideas'],
+  musicIdeas: ['Here’s something to listen to. One click and I’ll look it up for you.', 'A few ideas. I’ll open them wherever you like.'],
+  musicIdeasFail: ['Nothing comes to mind, my brain is elsewhere. Try again in a moment.'],
   musicNone: ['Nothing’s playing. Open Spotify and I’ll handle the rest.', 'No music in sight.'],
   // work session
   focusLeft: ['{m} more min. Hang in there!', "Shh, we're working. {m} min left.", "Not now, I'm focused. {m} min.", '{m} more minutes, then we talk.'],

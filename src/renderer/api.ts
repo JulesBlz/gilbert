@@ -22,6 +22,8 @@ function previewApi(): GilbertApi {
     getSettings: async () => ({ ...DEFAULT_SETTINGS }),
     briefPending: async () => false,
     replayBrief: () => {},
+    musicSuggest: async () => [{ title: 'Space Oddity', artist: 'David Bowie' }, { title: 'Dreams', artist: 'Fleetwood Mac' }, { title: 'Intro', artist: 'The xx' }],
+    musicOpen: () => {},
     music: async () => ({ player: '', playing: false, title: '', artist: '' }),
     focus: () => {},
     played: () => {},

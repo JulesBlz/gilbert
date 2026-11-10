@@ -187,3 +187,41 @@ html[lang="vi"] .bubble, html[lang="vi"] .chat {
 .bubble-bar .track { flex: 1; height: 12px; background: var(--bg); box-shadow: inset 0 0 0 var(--bw) var(--ink); display: block; }
 .bubble-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
 .bubble-bar b { font-weight: 400; min-width: 48px; text-align: right; }
+
+/* musique en fond : un ruban sombre au-dessus de la bulle, trois boutons pixel et le titre qui défile */
+.chat-music {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--ink);
+  color: var(--card);
+  font-size: var(--fs-xs);
+  line-height: var(--lh);
+}
+.chat-music[hidden] { display: none; }
+.chat-music button {
+  flex: none;
+  display: block;
+  padding: 2px;
+  color: var(--card);
+  background: none;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+.chat-music button.main { color: var(--accent); }
+.chat-music button:hover { color: var(--accent); background: none; box-shadow: none; }
+.chat-music button.main:hover { color: var(--card); }
+.chat-music svg { display: block; fill: currentColor; }
+.chat-music .track { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+.chat-music .run { display: inline-block; }
+.chat-music .run > span { display: inline-block; padding-right: 32px; }
+.chat-music .run > span[hidden] { display: none; }
+.chat-music .run.scroll { animation: marquee var(--run, 10s) linear infinite; }
+@keyframes marquee { to { transform: translateX(-50%); } }

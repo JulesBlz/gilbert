@@ -148,6 +148,13 @@ export const fr = {
   musicPaused: ['Pause. Le silence, enfin.', 'Musique en pause.', 'Pause. Mes oreilles te remercient.'],
   musicPlaying: ['Et ça repart : {track}.', 'Musique !'],
   musicNow: ['En ce moment : {track}.', "Ça, c'est {track}."],
+  musicBtnPause: ['Pause'],
+  musicBtnPlay: ['Reprendre'],
+  musicBtnNext: ['Suivant'],
+  musicBtnPrev: ['Précédent'],
+  musicBtnMore: ['Autres idées'],
+  musicIdeas: ['Voilà de quoi écouter. Un clic et je cherche ça dans ta musique.', 'Quelques idées. Je te les ouvre où tu veux.'],
+  musicIdeasFail: ['Rien ne me vient, mon cerveau est ailleurs. Réessaie dans un instant.'],
   musicNone: ['Rien ne joue. Ouvre Spotify et je m’occupe du reste.', 'Aucune musique en vue.'],
   // session de travail
   focusLeft: ['Encore {m} min. On tient !', 'Chut, on bosse. Encore {m} min.', 'Pas maintenant, je suis concentré. {m} min.', 'Encore {m} minutes, après on parle.'],

@@ -44,6 +44,39 @@ function musicCommand(text: string): 'status' | 'play' | 'pause' | 'next' | 'pre
   return null;
 }
 
+/** Ce qui joue, avec de quoi enchaîner d'un clic : pause / reprendre, suivant, précédent */
+function runMusic(pet: Pet, cmd: 'status' | 'play' | 'pause' | 'next' | 'previous') {
+  api.music(cmd).then((t) => {
+    const track = { fr: `« ${t.title} » de ${t.artist}`, en: `"${t.title}" by ${t.artist}`, vi: `« ${t.title} » của ${t.artist}` }[pet.settings.lang];
+    if (!t.player || !t.title) return pet.say(pick(lines.musicNone));
+    const key = cmd === 'next' ? 'musicNext' : cmd === 'previous' ? 'musicPrevious' : cmd === 'status' ? 'musicNow' : t.playing ? 'musicPlaying' : 'musicPaused';
+    pet.say(pick(lines[key], { track }), [
+      t.playing ? { label: pick(lines.musicBtnPause), run: () => runMusic(pet, 'pause') } : { label: pick(lines.musicBtnPlay), run: () => runMusic(pet, 'play') },
+      { label: pick(lines.musicBtnNext), run: () => runMusic(pet, 'next') },
+      { label: pick(lines.musicBtnPrev), run: () => runMusic(pet, 'previous') },
+    ]);
+  });
+}
+
+/** Trois morceaux pour une envie ; chacun ouvre sa recherche dans Spotify, « autres idées » en redemande */
+function suggestMusic(pet: Pet, request: string) {
+  pet.think();
+  api.musicSuggest(request).then((songs) => {
+    if (!songs.length) return pet.say(pick(lines.musicIdeasFail));
+    pet.say(pick(lines.musicIdeas), [
+      ...songs.map((s) => ({ label: `${s.title} – ${s.artist}`, run: () => api.musicOpen(`${s.title} ${s.artist}`) })),
+      { label: pick(lines.musicBtnMore), run: () => suggestMusic(pet, request) },
+    ]);
+  }).catch(() => pet.say(pick(lines.musicIdeasFail)));
+}
+
+/** « propose-moi une musique triste », « une playlist pour bosser », « suggest a song for a road trip » */
+function wantsSuggestions(text: string) {
+  const t = text.trim().toLowerCase();
+  const thing = /(musique|chanson|morceau|playlist|music|song|bài hát|nhạc)/;
+  return thing.test(t) && /^(propose|conseille|suggère|suggere|recommande|trouve|cherche|donne|mets|met|lance|fais|une idée|idée|des idées|suggest|recommend|find|give|play|make|got|any)/.test(t);
+}
+
 async function main() {
   if (isPreview) document.body.classList.add('preview');
   resizeCanvas();
@@ -118,12 +151,13 @@ async function main() {
       const music = musicCommand(text);
       if (music) {
         pet.stopListening();
-        api.music(music).then((t) => {
-          const track = { fr: `« ${t.title} » de ${t.artist}`, en: `"${t.title}" by ${t.artist}`, vi: `« ${t.title} » của ${t.artist}` }[pet.settings.lang];
-          if (!t.player || !t.title) return pet.say(pick(lines.musicNone));
-          const key = music === 'next' ? 'musicNext' : music === 'previous' ? 'musicPrevious' : music === 'status' ? 'musicNow' : t.playing ? 'musicPlaying' : 'musicPaused';
-          pet.say(pick(lines[key], { track }));
-        });
+        runMusic(pet, music);
+        return;
+      }
+      // « propose-moi une musique pour travailler » : trois idées, un clic pour les chercher
+      if (wantsSuggestions(text)) {
+        pet.stopListening();
+        suggestMusic(pet, text);
         return;
       }
       const id = nextId++;
@@ -137,6 +171,7 @@ async function main() {
     },
   );
   chat.onSettings = () => api.openSettings();
+  chat.onMusicCommand = (cmd) => api.music(cmd);
   // note vocale : un clic pour parler, il s'arrête tout seul quand tu te tais. Ce qu'il entend
   // s'écrit dans le champ au fil de la voix ; à la fin, tu relis, tu corriges si besoin, et Entrée.
   const mic = new Mic();
@@ -192,6 +227,8 @@ async function main() {
     api.setFocus(true);
     if (fill && example) chat.show(pick(lines.chatPlaceholder), { value: example });
     else chat.show(example ?? pick(lines.chatPlaceholder));
+    // de la musique en fond : les boutons et le titre apparaissent au-dessus
+    api.music('status').then((t) => chat.setMusic(t)).catch(() => {});
     return true;
   };
   pet.clickHandler = () => {

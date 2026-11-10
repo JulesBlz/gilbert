@@ -50,6 +50,8 @@ export interface Settings {
   brainModel: string;
   /** Le premier lancement de l'appli installée est fait (installeur rangé, poubelle sur le bureau) */
   installed: boolean;
+  /** La dernière version dont il a annoncé les nouveautés */
+  seenVersion: string;
   /** Ce qu'il porte (pelage, accessoire) et ce qu'on lui a offert à la boutique */
   skin: Skin;
   owned: string[];
@@ -94,6 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tried: [],
   collected: [],
   installed: false,
+  seenVersion: '',
   skin: { fur: 'gray', accessory: '' },
   owned: ['gray'],
   musicComments: true,
@@ -353,6 +356,10 @@ export interface GilbertApi {
   /** Une fonction du guide a servi (vue seulement d'ici : on l'a fait descendre par la queue) */
   tried(key: 'hide'): void;
   /** Lecture / pause / suivant / précédent, ou juste « qu'est-ce qui joue ? » */
+  /** Trois idées de morceaux pour une envie (« musique pour travailler ») ; vide si le cerveau ne répond pas */
+  musicSuggest(request: string): Promise<{ title: string; artist: string }[]>;
+  /** Ouvre la recherche de ce morceau dans Spotify (ou son site) */
+  musicOpen(query: string): void;
   music(cmd: 'status' | 'play' | 'pause' | 'next' | 'previous'): Promise<{ player: string; playing: boolean; title: string; artist: string }>;
   setIgnoreMouse(ignore: boolean): void;
   /** Rend la fenêtre capable de recevoir le clavier (le temps d'une discussion) */

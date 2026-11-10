@@ -150,6 +150,13 @@ export const vi: Lines = {
   musicPaused: ['Tạm dừng. Cuối cùng cũng yên tĩnh.', 'Nhạc đã tạm dừng.'],
   musicPlaying: ['Tiếp tục nào: {track}.', 'Nhạc lên!'],
   musicNow: ['Đang phát: {track}.', 'Đó là {track}.'],
+  musicBtnPause: ['Tạm dừng'],
+  musicBtnPlay: ['Phát tiếp'],
+  musicBtnNext: ['Bài sau'],
+  musicBtnPrev: ['Bài trước'],
+  musicBtnMore: ['Gợi ý khác'],
+  musicIdeas: ['Có gì để nghe đây. Bấm một cái là tớ tìm cho.', 'Vài gợi ý. Tớ mở ở đâu tùy cậu.'],
+  musicIdeasFail: ['Tớ chưa nghĩ ra gì, thử lại sau nhé.'],
   musicNone: ['Không có gì đang phát. Mở Spotify đi, tớ lo phần còn lại.', 'Không thấy nhạc đâu cả.'],
   // buổi làm việc
   focusLeft: ['Còn {m} phút. Cố lên!', 'Suỵt, đang làm việc. Còn {m} phút.', 'Không phải bây giờ, tớ đang tập trung. {m} phút.', 'Còn {m} phút nữa, rồi mình nói chuyện.'],
