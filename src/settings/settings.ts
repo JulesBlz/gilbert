@@ -97,6 +97,7 @@ const T = {
       vision: ['Regarder mon écran', 'Erreurs, fautes, oublis ; il se tait en visio et te rappelle à l’ordre. Il lit le texte de la fenêtre au premier plan, sur ton ordi, et ne garde rien.'],
       clipboard: ['M’aider avec ce que je copie', 'Traduire, résumer, corriger, reformuler, expliquer une erreur.'],
       tidy: ['Ranger mes Téléchargements', 'Il propose quand ça déborde, ne fait rien sans ton accord.'],
+      weekendIdeas: ['Idées de week-end', 'Le vendredi soir, je propose une ou deux idées de sortie selon la météo (et le web si tu l’autorises).'],
       projectIdeas: ['Proposer des projets', 'Quand un même sujet revient dans tes mails importants, je propose d’en faire une fiche projet (je demande toujours avant).'],
       projectScreen: ['Projets : lire l’écran', 'Si la fenêtre ouverte parle d’un projet suivi, je note une ligne utile ou une chose à ne pas oublier dans sa fiche. Ni image ni texte de l’écran n’est gardé.'],
       updates: ['Chercher les mises à jour', 'Gilbert regarde sur GitHub si une nouvelle version existe et te propose de s’y mettre (jamais sans ton accord ; archive signée, vérifiée avant installation).'],
@@ -189,6 +190,7 @@ const T = {
       vision: ['Watch my screen', 'Errors, typos, oversights; goes quiet in calls and nudges you. Reads the front window’s text, on your computer, keeps nothing.'],
       clipboard: ['Help with what I copy', 'Translate, summarise, fix, rephrase, explain an error.'],
       tidy: ['Tidy my Downloads', 'Offers when they overflow, does nothing without your OK.'],
+      weekendIdeas: ['Weekend ideas', 'On Friday evening, I suggest an outing or two based on the weather (and the web if you allow it).'],
       projectIdeas: ['Suggest projects', 'When the same topic keeps showing up in your important emails, I offer to make a project sheet (I always ask first).'],
       projectScreen: ['Projects: read the screen', 'If the open window is about a tracked project, I note one useful line or a to-do in its sheet. No image or screen text is kept.'],
       updates: ['Check for updates', 'Gilbert looks on GitHub for a newer version and offers to install it (never without your consent; the archive is signed and verified first).'],
@@ -281,6 +283,7 @@ const T = {
       vision: ['Nhìn màn hình', 'Lỗi, lỗi chính tả, sơ suất; im khi họp và nhắc cậu tập trung. Đọc chữ cửa sổ phía trước, ngay trên máy, không giữ lại gì.'],
       clipboard: ['Giúp với những gì tớ sao chép', 'Dịch, tóm tắt, sửa, viết lại, giải thích lỗi.'],
       tidy: ['Dọn thư mục Tải về', 'Gợi ý khi đầy, không làm gì khi chưa được đồng ý.'],
+      weekendIdeas: ['Ý tưởng cuối tuần', 'Tối thứ Sáu, tớ gợi ý một hai chỗ đi chơi theo thời tiết (và web nếu cậu cho phép).'],
       projectIdeas: ['Gợi ý dự án', 'Khi cùng một chủ đề cứ xuất hiện trong email quan trọng, tớ đề nghị tạo hồ sơ dự án (luôn hỏi trước).'],
       projectScreen: ['Dự án: đọc màn hình', 'Nếu cửa sổ đang mở nói về một dự án đang theo dõi, tớ ghi một dòng hữu ích hoặc việc cần nhớ vào hồ sơ. Không lưu hình hay chữ trên màn hình.'],
       updates: ['Kiểm tra bản cập nhật', 'Gilbert xem trên GitHub có bản mới không và hỏi cậu có muốn cập nhật (không bao giờ tự làm; gói được ký và kiểm tra trước khi cài).'],
@@ -385,7 +388,7 @@ const api: PrefsApi = window.prefs ?? (() => {
     move: () => {},
     journal: async () => ({
       days: {
-        [day]: { apps: { 'Visual Studio Code': 142, 'Google Chrome': 96, Figma: 51, Slack: 18 }, focus: { sessions: 3, minutes: 100, stopped: 1 }, done: ['Rendre le devis'], mails: 4, chats: 7, note: '', acorns: 100 },
+        [day]: { apps: { 'Visual Studio Code': 142, 'Google Chrome': 96, Figma: 51, Slack: 18 }, focus: { sessions: 3, minutes: 100, stopped: 1 }, hours: [0, 0, 0, 0, 0, 0, 0, 0, 14, 38, 52, 44, 20, 12, 33, 48, 40, 22, 9, 0, 0, 0, 0, 0], done: ['Rendre le devis'], mails: 4, chats: 7, note: '', acorns: 100 },
       },
       weeks: {}, acorns: { total: 137 }, firstSeen: Date.now() - 12 * 86_400_000,
     }),
@@ -760,7 +763,7 @@ function renderGeneral() {
   );
 
   const allowed = h('section', {}, h('h2', {}, t.allowed));
-  const keys = (['vision', 'clipboard', 'messages', 'tidy', 'musicComments', 'journal', 'moods', 'webSearch', 'projectIdeas', 'projectScreen', 'updates'] as const)
+  const keys = (['vision', 'clipboard', 'messages', 'tidy', 'musicComments', 'journal', 'moods', 'webSearch', 'weekendIdeas', 'projectIdeas', 'projectScreen', 'updates'] as const)
     // les messageries : seulement sur Mac (la pastille des applis)
     .filter((k) => (k !== 'vision' || state.vision.supported) && (k !== 'messages' || /Mac/.test(navigator.platform)) && (k !== 'updates' || /Mac/.test(navigator.platform)));
   for (const k of keys) {

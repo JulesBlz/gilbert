@@ -464,7 +464,8 @@ async function main() {
     if (pet.quiet) return;
     // la toute première fois : il se présente et propose de faire connaissance
     if (firstTime) return offerIntro();
-    const mood = pet.mood < 0.3 ? pick(lines.greetSulky) : pet.mood > 0.8 ? pick(lines.greetFond) : '';
+    // l'humeur (boudeur ou câlin) ne prend le bonjour qu'une fois sur deux : sinon les salutations du moment de la journée ne s'entendraient jamais
+    const mood = Math.random() < 0.5 ? (pet.mood < 0.3 ? pick(lines.greetSulky) : pet.mood > 0.8 ? pick(lines.greetFond) : '') : '';
     pet.say(briefSoon ? `${mood ? `${mood} ` : ''}${pick(lines.briefSoon)}` : mood || greeting(memory.profile.name));
   }, 1200);
   // après la salutation : il propose son cerveau s'il n'en a pas encore (après les questions, la première fois)
@@ -489,9 +490,9 @@ async function main() {
     const free = !asking && !chat.open && (pet.isIdle() || pet.onCeiling || (pet.working && !bubble.visible));
     if (unanswered && !unanswered.queued && !bubble.visible && pet.isIdle()) {
       unanswered.goneAt ||= now;
-      if (now - unanswered.goneAt > 4000) {
-        // redit en tête de file, ou abandonné après trois fois
-        if (unanswered.shown < 3) { notices.unshift(unanswered.n); unanswered.queued = true; }
+      if (now - unanswered.goneAt > 5 * 60_000) {
+        // redit une fois, cinq minutes plus tard, puis abandonné : il n'insiste pas
+        if (unanswered.shown < 2) { notices.unshift(unanswered.n); unanswered.queued = true; }
         else unanswered = null;
       }
     } else if (unanswered && bubble.visible) unanswered.goneAt = 0;

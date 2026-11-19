@@ -52,6 +52,10 @@ export interface Settings {
   installed: boolean;
   /** La dernière version dont il a annoncé les nouveautés */
   seenVersion: string;
+  /** Le jour où il a cherché de nouveaux projets dans les mails pour la dernière fois */
+  discoverDay: string;
+  /** Le jour (AAAA-MM-JJ) où les fiches projet ont été mises à jour pour la dernière fois, le matin */
+  projectsDay: string;
   /** Ce qu'il porte (pelage, accessoire) et ce qu'on lui a offert à la boutique */
   skin: Skin;
   owned: string[];
@@ -65,6 +69,8 @@ export interface Settings {
   theme: 'auto' | 'light' | 'dark';
   /** Proposer de créer une fiche projet quand un même sujet revient dans les mails */
   projectIdeas: boolean;
+  /** Le vendredi soir : une ou deux idées de sortie pour le week-end, selon la météo */
+  weekendIdeas: boolean;
   /** Noter dans les fiches projet ce qu'il voit à l'écran (une ligne, jamais l'écran) */
   projectScreen: boolean;
   /** Il tient le carnet de bord (applis utilisées, sessions, note du soir, résumé de la semaine) */
@@ -97,6 +103,8 @@ export const DEFAULT_SETTINGS: Settings = {
   collected: [],
   installed: false,
   seenVersion: '',
+  discoverDay: '',
+  projectsDay: '',
   skin: { fur: 'gray', accessory: '' },
   owned: ['gray'],
   musicComments: true,
@@ -104,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   updates: true,
   theme: 'light',
   projectIdeas: true,
+  weekendIdeas: true,
   projectScreen: true,
   journal: true,
   clipboard: true,
@@ -121,6 +130,8 @@ export interface JournalDay {
   /** Minutes passées dans chaque appli (quand tu étais devant l'écran) */
   apps: Record<string, number>;
   focus: { sessions: number; minutes: number; stopped: number };
+  /** Minutes devant l'écran, heure par heure (24 cases, de 0 h à 23 h) */
+  hours?: number[];
   /** Rappels et échéances cochés « Fait » */
   done: string[];
   mails: number;
@@ -576,6 +587,8 @@ export interface Project {
   updatedAt: number;
   /** Dernière fois qu'il t'a vu travailler dessus (écran) */
   seenAt: number;
+  /** Minutes passées devant ce projet, par jour (AAAA-MM-JJ), d'après la fenêtre au premier plan */
+  minutes?: Record<string, number>;
 }
 
 /** Une recommandation de Gilbert pour un projet (« Répondre à Paul », « Relancer… ») */
@@ -595,7 +608,12 @@ export interface ProjectView {
   advice: ProjectAdvice[];
   events: { when: string; title: string }[];
   mails: { from: string; summary: string; when: string }[];
+  /** Temps passé dessus (minutes) : cette semaine, et en tout */
+  time: { week: number; total: number };
 }
+
+/** Un projet que Gilbert a repéré dans les mails et propose de suivre */
+export interface ProjectIdeaView { key: string; name: string; hint: string }
 
 export type ProjectOp =
   | { type: 'add'; name: string; category: string; keywords: string; description: string }
@@ -609,11 +627,14 @@ export type ProjectOp =
   | { type: 'noteRemove'; id: string; noteId: string }
   | { type: 'dismiss'; id: string; adviceId: string }
   /** Gilbert rédige le brouillon de cette recommandation et le copie */
-  | { type: 'draft'; id: string; adviceId: string };
+  | { type: 'draft'; id: string; adviceId: string }
+  /** Créer la fiche d'une idée repérée, ou l'écarter */
+  | { type: 'ideaCreate'; key: string }
+  | { type: 'ideaDismiss'; key: string };
 
 /** API de l'onglet Projets, sous `window.projects` */
 export interface ProjectsApi {
-  get(): Promise<{ projects: ProjectView[]; categories: string[]; lang: Lang }>;
+  get(): Promise<{ projects: ProjectView[]; categories: string[]; ideas: ProjectIdeaView[]; lang: Lang }>;
   act(op: ProjectOp): void;
   onChange(cb: () => void): void;
 }

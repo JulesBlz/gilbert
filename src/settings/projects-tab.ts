@@ -2,7 +2,7 @@
 // droite la fiche : prochaine étape, ce que Gilbert recommande (répondre, relancer, préparer), les notes
 // qu'il prend (mails, rendez-vous) et que tu peux compléter, et ce qui tourne autour (agenda, liste, mails).
 
-import type { Lang, Project, ProjectOp, ProjectsApi, ProjectStatus, ProjectView } from '../shared/types';
+import type { Lang, Project, ProjectIdeaView, ProjectOp, ProjectsApi, ProjectStatus, ProjectView } from '../shared/types';
 import { tiny } from './icons';
 import { saved } from './saved';
 
@@ -26,6 +26,7 @@ const T = {
     report: 'Où j’en suis', feed: 'Dernières infos', feedNone: 'Rien de relevé pour l’instant : ça se remplit tout seul.', sources: { mail: 'mail', screen: 'écran', chat: 'discussion', manual: 'toi' } as Record<string, string>, reportPh: 'Je rédige ici le rapport d’avancement, au fil de tes mails.', byMe: 'écrit par Gilbert', byYou: 'écrit par toi', refresh: 'Mettre à jour',
     settings: 'Réglages du projet', sure: 'Sûr ?', remove: 'Supprimer le projet', removeConfirm: (n: string) => `Supprimer la fiche « ${n} » et tout son contenu ?`, del: 'Retirer',
     today: 'aujourd’hui', tomorrow: 'demain',
+    spotted: 'Repérés dans tes mails', spottedHint: 'Je les ai trouvés en regroupant tes mails. Un clic et je crée la fiche, déjà remplie.', track: 'Suivre', ignore: 'Écarter', timeWeek: 'cette semaine',
   },
   en: {
     add: 'New project', create: 'Create', cancel: 'Cancel', newTitle: 'New project',
@@ -42,6 +43,7 @@ const T = {
     report: 'Where I stand', feed: 'Latest info', feedNone: 'Nothing picked up yet: it fills itself.', sources: { mail: 'email', screen: 'screen', chat: 'chat', manual: 'you' } as Record<string, string>, reportPh: 'I write the progress report here, as your emails come in.', byMe: 'written by Gilbert', byYou: 'written by you', refresh: 'Update',
     settings: 'Project settings', sure: 'Sure?', remove: 'Delete project', removeConfirm: (n: string) => `Delete the "${n}" sheet and all its content?`, del: 'Remove',
     today: 'today', tomorrow: 'tomorrow',
+    spotted: 'Spotted in your emails', spottedHint: 'I found these by grouping your emails. One click and I create the sheet, already filled in.', track: 'Track', ignore: 'Dismiss', timeWeek: 'this week',
   },
   vi: {
     add: 'Dự án mới', create: 'Tạo', cancel: 'Hủy', newTitle: 'Dự án mới',
@@ -58,6 +60,7 @@ const T = {
     report: 'Tiến độ hiện tại', feed: 'Thông tin mới', feedNone: 'Chưa ghi nhận gì: tự động điền.', sources: { mail: 'email', screen: 'màn hình', chat: 'trò chuyện', manual: 'cậu' } as Record<string, string>, reportPh: 'Tớ viết báo cáo tiến độ ở đây, theo các email của cậu.', byMe: 'do Gilbert viết', byYou: 'do cậu viết', refresh: 'Cập nhật',
     settings: 'Cài đặt dự án', sure: 'Chắc chưa?', remove: 'Xóa dự án', removeConfirm: (n: string) => `Xóa hồ sơ « ${n} » và toàn bộ nội dung?`, del: 'Gỡ',
     today: 'hôm nay', tomorrow: 'ngày mai',
+    spotted: 'Tìm thấy trong email', spottedHint: 'Tớ tìm thấy khi gom các email lại. Bấm một cái là tớ tạo hồ sơ, điền sẵn.', track: 'Theo dõi', ignore: 'Bỏ qua', timeWeek: 'tuần này',
   },
 };
 
@@ -70,15 +73,18 @@ const demo: ProjectView[] = [{
   percent: 33,
   advice: [{ id: 'reply:1', kind: 'reply', draft: true, text: 'Camille attend ta réponse depuis 3 j : valide la maquette, attend le devis' }],
   events: [{ when: 'jeu. 6 nov. 10:00', title: 'Point maquette' }], mails: [{ from: 'Camille', summary: 'valide la maquette, attend le devis', when: 'lun. 3 nov.' }],
+ time: { week: 195, total: 640 },
 }, {
   project: { id: 'b', name: 'Déménagement', category: 'Perso', status: 'active', keywords: [], description: '', progress: '', progressAuto: true, todos: [], notes: [], doc: '', createdAt: Date.now(), updatedAt: Date.now(), seenAt: 0 },
-  percent: -1, advice: [], events: [], mails: [],
+  percent: -1, advice: [], events: [], mails: [], time: { week: 0, total: 0 },
 }];
 const api: ProjectsApi = window.projects ?? {
-  get: async () => ({ projects: demo, categories: ['Client', 'Perso'], lang: 'fr' as Lang }),
+  get: async () => ({ projects: demo, categories: ['Client', 'Perso'], ideas: [{ key: 'c:demo', name: 'Déménagement', hint: '4 mails · 2 j' }], lang: 'fr' as Lang }),
   act: () => {},
   onChange: () => {},
 };
+
+const hm = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`);
 
 function h<E extends HTMLElement = HTMLElement>(tag: string, props: Record<string, unknown> = {}, ...children: (Node | string)[]): E {
   const el = Object.assign(document.createElement(tag), props) as E;
@@ -96,6 +102,7 @@ export function mountProjects(root: HTMLElement) {
   let t = T.fr;
   let views: ProjectView[] = [];
   let categories: string[] = [];
+  let ideas: ProjectIdeaView[] = [];
   let selected = '';
   let creating = false;
   /** Après une création : ouvrir la nouvelle fiche dès qu'elle arrive */
@@ -125,6 +132,15 @@ export function mountProjects(root: HTMLElement) {
     return el;
   };
   const dataList = () => h('datalist', { id: 'pj-cats' }, ...categories.map((c) => h('option', { value: c })));
+
+  /** Un projet repéré dans les mails : « Suivre » crée la fiche (déjà remplie), la croix l'écarte */
+  function ideaRow(i: ProjectIdeaView) {
+    const open = h<HTMLButtonElement>('button', { className: 'pj-item idea', type: 'button', title: `${t.track} : ${i.name}` }, h('span', { className: 'pj-name' }, i.name), h('small', {}, i.hint));
+    open.addEventListener('click', () => { openNewest = true; act({ type: 'ideaCreate', key: i.key }); });
+    const no = h<HTMLButtonElement>('button', { className: 'conv-del', title: t.ignore, type: 'button' }, tiny('close'));
+    no.addEventListener('click', () => act({ type: 'ideaDismiss', key: i.key }));
+    return h('div', { className: 'pj-row idea' }, open, no);
+  }
 
   function renderList() {
     const side = h('aside', { className: 'pj-side' });
@@ -156,6 +172,7 @@ export function mountProjects(root: HTMLElement) {
     for (const [cat, list] of [...groups].sort((a, b) => (a[0] === '' ? 1 : 0) - (b[0] === '' ? 1 : 0) || a[0].localeCompare(b[0]))) {
       side.append(h('div', { className: 'pj-cat' }, cat || t.uncategorized), ...list.map(item));
     }
+    if (ideas.length) side.append(h('div', { className: 'pj-cat' }, t.spotted), ...ideas.map(ideaRow));
     const finished = views.filter((x) => x.project.status === 'done');
     if (finished.length) side.append(h('details', { className: 'pj-fold pj-finished', open: finished.some((x) => x.project.id === selected) }, h('summary', {}, `${t.finished} (${finished.length})`), ...finished.map(item)));
     return side;
@@ -213,7 +230,7 @@ export function mountProjects(root: HTMLElement) {
     title.className = 'pj-title';
     const about = area(p.description, t.descriptionPh, 1, (description) => edit({ description }));
     about.className = 'pj-about';
-    sheet.append(title, h('div', { className: 'pj-sub' }, [p.category || t.uncategorized, t.statuses[p.status]].join('  ·  ')), about);
+    sheet.append(title, h('div', { className: 'pj-sub' }, [p.category || t.uncategorized, t.statuses[p.status], ...(v.time.week ? [`${hm(v.time.week)} ${t.timeWeek}`] : [])].join('  ·  ')), about);
 
     // 1. où j'en suis : la jauge et le rapport que Gilbert écrit
     const pct = p.status === 'done' ? 100 : v.percent;
@@ -303,7 +320,7 @@ export function mountProjects(root: HTMLElement) {
     const v = views.find((x) => x.project.id === selected) ?? views[0];
     if (v) selected = v.project.id;
     const body = creating || !v
-      ? (creating ? renderCreate() : h('div', { className: 'pj-sheet' }, h('section', {}, h('h2', {}, t.none), h('div', { className: 'empty-state' }, h('p', {}, t.noneHint), first()))) )
+      ? (creating ? renderCreate() : h('div', { className: 'pj-sheet' }, h('section', {}, h('h2', {}, t.none), h('div', { className: 'empty-state' }, h('p', {}, t.noneHint), first()), ...(ideas.length ? [h('section', {}, h('h2', {}, t.spotted), h('p', { className: 'help' }, t.spottedHint), ...ideas.map(ideaRow))] : []))) )
       : renderSheet(v);
     root.replaceChildren(h('div', { className: 'pj' }, renderList(), body));
   }
@@ -315,6 +332,7 @@ export function mountProjects(root: HTMLElement) {
     const before = new Set(views.map((x) => x.project.id));
     views = d.projects;
     categories = d.categories;
+    ideas = d.ideas ?? [];
     if (openNewest) {
       const fresh = views.find((x) => !before.has(x.project.id));
       if (fresh) { selected = fresh.project.id; openNewest = false; }

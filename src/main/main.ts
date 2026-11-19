@@ -261,7 +261,12 @@ function startJournal() {
   setInterval(async () => {
     if (!settings.journal || powerMonitor.getSystemIdleTime() > 60) return;
     const w = await frontWindow();
-    if (w && w.pid !== process.pid) journal.addAppMinute(w.app);
+    if (w && w.pid !== process.pid) {
+      journal.addAppMinute(w.app);
+      // le même minute compte pour le projet dont parle la fenêtre (son nom ou ses mots-clés)
+      const pj = projects.about(`${w.app} ${w.title}`)[0];
+      if (pj && pj.status === 'active') projects.addMinute(pj.id);
+    }
   }, 60_000);
   setTimeout(() => logbook().catch(() => {}), 3 * 60_000);
   setInterval(() => logbook().catch(() => {}), 10 * 60_000);
@@ -570,7 +575,11 @@ ipcMain.on('prefs:set', (_e, patch: Partial<Settings>) => {
   const { vision, ...rest } = patch;
   if (Object.keys(rest).length) update(rest);
   if (rest.messages !== undefined) badges.setEnabled(rest.messages);
-  if (rest.mailPrimaryOnly !== undefined) assistant.mail.primaryOnly = rest.mailPrimaryOnly;
+  if (rest.mailPrimaryOnly !== undefined) {
+    assistant.mail.primaryOnly = rest.mailPrimaryOnly;
+    // activée : les mails déjà rangés qui ne sont pas dans la boîte principale sont oubliés tout de suite
+    if (rest.mailPrimaryOnly) void assistant.prunePrimary().then((n) => { if (n) projects.forgetOrphanIdeas(assistant.mailbox.mails); }).catch(() => {});
+  }
   if (vision !== undefined && vision !== settings.vision) setVision(vision);
 });
 /** Ce qui le fait parler ou agir à l'écran : il descend d'abord de la fenêtre (sinon elle cache sa bulle) */
@@ -659,11 +668,22 @@ const projectSources = (): Sources => ({ mails: assistant.mailbox.mails, events:
 ipcMain.handle('projects:get', () => ({
   projects: projects.views(projectSources()),
   categories: [...new Set(projects.projects.map((p) => p.category).filter(Boolean))],
+  ideas: projects.suggestions(),
   lang: settings.lang,
 }));
 ipcMain.on('projects:act', (_e, op: ProjectOp) => {
   switch (op?.type) {
-    case 'add': projects.add(String(op.name ?? ''), String(op.category ?? ''), String(op.keywords ?? ''), String(op.description ?? '')); break;
+    case 'add': {
+      const p = projects.add(String(op.name ?? ''), String(op.category ?? ''), String(op.keywords ?? ''), String(op.description ?? ''));
+      if (p) backfillProject(p.id);
+      break;
+    }
+    case 'ideaCreate': {
+      const p = projects.createFromIdea(String(op.key));
+      if (p) backfillProject(p.id);
+      break;
+    }
+    case 'ideaDismiss': projects.markIdea(String(op.key), 'declined'); break;
     case 'edit': projects.edit(String(op.id), op.patch ?? {}); break;
     case 'remove': projects.remove(String(op.id)); break;
     case 'report': void writeReport(String(op.id), true); break;
@@ -676,17 +696,96 @@ ipcMain.on('projects:act', (_e, op: ProjectOp) => {
   }
 });
 
+/** Une fiche neuve (ou ses mots-clés changés) : les mails déjà reçus qui en parlent la remplissent tout de suite */
+function backfillProject(id: string) {
+  const added = projects.backfill(id, assistant.mailbox.mails);
+  if (!added) scheduleReport(id);
+}
+
+/** Une idée de projet repérée : une bulle pour proposer d'en faire une fiche (une seule par jour) */
+function proposeIdea(key: string, name: string, hint: string) {
+  assistant.tell(
+    say3(`J’ai repéré un projet dans tes mails : « ${name} » (${hint}). Je crée la fiche et je la remplis ?`, `I spotted a project in your emails: "${name}" (${hint}). Shall I create the sheet and fill it in?`, `Tớ thấy một dự án trong email: « ${name} » (${hint}). Tạo hồ sơ và điền sẵn nhé?`),
+    [{ label: say3('Créer la fiche', 'Create it', 'Tạo hồ sơ'), value: 'yes' }, { label: say3('Pas pour moi', 'Not for me', 'Không cần'), value: 'no' }],
+    (v) => {
+      if (v === 'yes') {
+        const p = projects.createFromIdea(key);
+        if (p) { backfillProject(p.id); assistant.tell(say3(`C’est fait : « ${p.name} » est dans l’onglet Projets, avec ce que j’ai trouvé.`, `Done: "${p.name}" is in the Projects tab, with what I found.`, `Xong: « ${p.name} » đã có trong tab Dự án, kèm những gì tớ tìm được.`)); }
+      } else projects.markIdea(key, 'declined');
+    },
+  );
+}
+
+/**
+ * Chaque jour : il cherche dans les mails des fils et des correspondants qui ressemblent à un projet, les nomme avec le
+ * cerveau (3 au plus par passage) et en propose un. Les idées restent visibles dans l'onglet Projets.
+ */
+let discovering = false;
+async function discoverProjects() {
+  const day = new Date().toLocaleDateString('sv');
+  if (discovering || settings.discoverDay === day || !settings.projectIdeas || brain.status.state !== 'ready') return;
+  const mails = assistant.mailbox.mails;
+  if (!mails.length) return;
+  discovering = true;
+  try {
+    let first: { key: string; name: string; hint: string } | null = null;
+    for (const c of projects.clusters(mails).slice(0, 3)) {
+      const summary = c.mails.slice(0, 3).map((m) => m.summary || m.subject).join(' / ');
+      const found = await projectIdea(brain, { from: c.from, subject: c.subject, summary }, settings.lang).catch(() => null);
+      const hit = projects.addCluster(c, found);
+      if (hit && !first) first = { key: hit.key, name: hit.idea.name, hint: `${c.mails.length} mails` };
+    }
+    update({ discoverDay: day });
+    if (first && !isQuiet() && !meeting) proposeIdea(first.key, first.name, first.hint);
+  } finally {
+    discovering = false;
+  }
+}
+
 /** Le rapport d'avancement est réécrit par Gilbert, tant que tu n'y as pas touché (ou si tu le lui demandes) */
 const reportTimers = new Map<string, NodeJS.Timeout>();
 function scheduleReport(id: string) {
   clearTimeout(reportTimers.get(id));
   reportTimers.set(id, setTimeout(() => { reportTimers.delete(id); void writeReport(id, false); }, 30_000));
 }
-async function writeReport(id: string, asked: boolean) {
+async function writeReport(id: string, asked: boolean, facts: string[] = []) {
   const p = projects.get(id);
   if (!p || (!asked && !p.progressAuto) || brain.status.state !== 'ready') return;
-  const text = await projectReport(brain, p, settings.lang).catch(() => null);
+  const text = await projectReport(brain, p, settings.lang, facts).catch(() => null);
   if (text) projects.setReport(id, text);
+}
+
+/**
+ * Chaque matin, toutes les fiches en cours sont remises à jour : les mails et rendez-vous du moment, les cases en retard,
+ * puis le rapport est réécrit (sauf si tu as écrit le tien). Une fois par jour, dès que le cerveau est prêt.
+ */
+let morningRunning = false;
+async function morningProjects() {
+  const day = new Date().toLocaleDateString('sv');
+  if (morningRunning || settings.projectsDay === day || new Date().getHours() < 6 || brain.status.state !== 'ready') return;
+  if (!projects.projects.some((p) => p.status === 'active')) return;
+  morningRunning = true;
+  try {
+    const fr = settings.lang === 'fr';
+    // d'abord, les mails reçus entre-temps qui parlent d'un projet rejoignent sa fiche
+    for (const p of projects.projects) if (p.status === 'active') projects.backfill(p.id, assistant.mailbox.mails);
+    for (const v of projects.views(projectSources())) {
+      const p = v.project;
+      if (p.status !== 'active' || !p.progressAuto) continue;
+      const late = p.todos.filter((t) => !t.done && t.due && t.due < day);
+      const facts = [
+        ...v.mails.map((m) => `${fr ? 'Mail récent' : 'Recent email'} (${m.when}) ${m.from} : ${m.summary}`),
+        ...v.events.map((e) => `${fr ? 'Rendez-vous' : 'Event'} ${e.when} : ${e.title}`),
+        ...late.slice(0, 3).map((t) => `${fr ? 'EN RETARD' : 'OVERDUE'} : ${t.text} (${t.due})`),
+      ];
+      // rien de nouveau et rien dedans : inutile de réécrire
+      if (!facts.length && !p.notes.length && !p.todos.length && !p.description) continue;
+      await writeReport(p.id, false, facts);
+    }
+    update({ projectsDay: day });
+  } finally {
+    morningRunning = false;
+  }
 }
 
 /** Un mail important qui ne ressemble à aucune fiche : si le même sujet revient, il propose d'en créer une */
@@ -1038,6 +1137,7 @@ if (!app.requestSingleInstanceLock()) {
         return out;
       },
       projectBrief: (title) => projects.brief(title, settings.lang),
+      weekend: () => ({ on: settings.weekendIdeas && !isQuiet() && !meeting, web: settings.webSearch }),
       projectsToday: () => {
         const day = new Date().toLocaleDateString('sv'), soon = new Date(Date.now() + 3 * 86_400_000).toLocaleDateString('sv');
         const out: { id: string; name: string; text: string; due: string; late: boolean }[] = [];
@@ -1114,6 +1214,10 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
     // une nouvelle version ? (un peu après le démarrage, puis toutes les 6 h)
     setTimeout(() => announceNews(wasInstalled), 20_000);
+    // les fiches projet : mises à jour chaque matin (quelques minutes après le lancement, puis toutes les heures au cas où le Mac reste allumé)
+    const projectsDaily = async () => { if (await assistant.prunePrimary().catch(() => 0)) projects.forgetOrphanIdeas(assistant.mailbox.mails); await discoverProjects().catch(() => {}); await morningProjects().catch(() => {}); };
+    setTimeout(() => void projectsDaily(), 4 * 60_000);
+    setInterval(() => void projectsDaily(), 3600_000);
     setTimeout(() => void lookForUpdate(), 45_000);
     setInterval(() => void lookForUpdate(), 6 * 3600_000);
     // sa fenêtre s'ouvre : il saute s'asseoir sur son bord du haut (le panneau est à 6 px du bord

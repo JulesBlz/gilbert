@@ -39,7 +39,7 @@ export async function screenInsight(brain: Brain, p: Project, screen: { app: str
 }
 
 /** Le petit rapport d'avancement d'un projet : trois phrases tirées de sa description, de ses infos et de ses cases */
-export async function projectReport(brain: Brain, p: Project, lang: Lang) {
+export async function projectReport(brain: Brain, p: Project, lang: Lang, facts: string[] = []) {
   const open = p.todos.filter((t) => !t.done), done = p.todos.filter((t) => t.done);
   const fr = lang === 'fr';
   const task = [
@@ -48,7 +48,9 @@ export async function projectReport(brain: Brain, p: Project, lang: Lang) {
     fr ? 'Dis où en est le projet, ce qui bloque ou presse, la prochaine étape. N\'invente rien : si les informations manquent, une seule phrase honnête suffit. Pas de titre, pas de puces.'
       : 'Say where the project stands, what blocks or presses, the next step. Invent nothing: if information is missing, one honest sentence is enough. No title, no bullets.',
     `${fr ? 'Écris' : 'Write'} ${SPEAK[lang]}.`,
+    `${fr ? 'Nous sommes le' : 'Today is'} ${new Date().toLocaleDateString('sv')}.`,
     p.description ? `${fr ? 'Description' : 'Description'} : ${p.description}` : '',
+    ...facts,
     ...p.notes.slice(0, 8).map((n) => `- ${new Date(n.at).toLocaleDateString('sv')} : ${n.text}`),
     ...open.slice(0, 8).map((t) => `${fr ? 'À faire' : 'To do'} : ${t.text}${t.due ? ` (${t.due})` : ''}`),
     ...done.slice(-4).map((t) => `${fr ? 'Fait' : 'Done'} : ${t.text}`),

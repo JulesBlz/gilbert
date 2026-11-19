@@ -33,7 +33,21 @@ export interface Idea {
   notes: { text: string; at: number }[];
   count: number;
   state: 'new' | 'asked' | 'declined';
+  /** Repéré en regroupant les mails d'un même fil ou d'un même correspondant (clé du groupe) */
+  cluster?: string;
+  /** Nombre de mails du groupe, et le plus récent */
+  mails?: number;
+  last?: number;
+  /** Les mails du groupe (uid), pour oublier l'idée si ces mails ne sont plus gardés */
+  uids?: number[];
 }
+
+/** Un groupe de mails qui ressemble à un projet */
+export interface Cluster { key: string; subject: string; from: string; mails: StoredMail[] }
+
+const NOISE_SENDER = /(no[-_.]?reply|not[-_.]?reply|do[-_.]?not|flickr|medium|substack|notification|newsletter|mailer|bounce|alert|billing|invoice|receipt|updates?@|news@|marketing|promo|digest|linkedin|facebook|instagram|twitter|google|apple|amazon|paypal|netflix|spotify|github|notion|slack)/i;
+const subjectKey = (s: string) => norm(s)
+  .replace(/^((re|fwd?|tr|fw|ref)\s*:\s*)+/, '').replace(/\[[^\]]*\]/g, ' ').replace(/[^a-z0-9 ]/g, ' ').replace(/\b\d{3,}\b/g, ' ').replace(/\s+/g, ' ').trim();
 
 export interface Reminder { text: string; fact: string; urgent: boolean }
 
@@ -69,7 +83,7 @@ export class ProjectStore extends EventEmitter {
       this.projects = (Array.isArray(saved.projects) ? saved.projects : []).map((p: Partial<Project> & { next?: string }) => ({
         id: p.id ?? randomUUID(), name: p.name ?? '', category: p.category ?? '', status: p.status ?? 'active', keywords: p.keywords ?? [],
         description: p.description ?? '', progress: p.progress ?? p.next ?? '', progressAuto: p.progressAuto ?? !(p.progress ?? p.next), todos: p.todos ?? [], notes: p.notes ?? [], doc: p.doc ?? '',
-        createdAt: p.createdAt ?? Date.now(), updatedAt: p.updatedAt ?? Date.now(), seenAt: p.seenAt ?? 0,
+        createdAt: p.createdAt ?? Date.now(), updatedAt: p.updatedAt ?? Date.now(), seenAt: p.seenAt ?? 0, minutes: p.minutes ?? {},
       }));
       this.dismissed = saved.dismissed ?? {};
       this.told = saved.told ?? {};
@@ -96,7 +110,7 @@ export class ProjectStore extends EventEmitter {
     const now = Date.now();
     const p: Project = {
       id: randomUUID(), name, category: category.trim().slice(0, 40), status: 'active', keywords: words(keywords), description: description.trim().slice(0, 400),
-      progress: '', progressAuto: true, todos: [], notes: [], doc: '', createdAt: now, updatedAt: now, seenAt: 0,
+      progress: '', progressAuto: true, todos: [], notes: [], doc: '', createdAt: now, updatedAt: now, seenAt: 0, minutes: {},
     };
     this.projects.unshift(p);
     this.commit();
@@ -230,6 +244,109 @@ export class ProjectStore extends EventEmitter {
       else if (needsReply) this.addTodo(p.id, `Répondre à ${m.from}`, '', true);
     }
     return matched;
+  }
+
+  // ---------- projets repérés dans les mails ----------
+
+  /**
+   * Regroupe les mails d'un même fil (même objet) ou d'un même correspondant : un groupe de deux mails ou plus dont un
+   * compte (important, en attente de réponse, ou auquel tu as répondu) ressemble à un projet. Ne renvoie que ce qui n'est ni
+   * déjà suivi, ni déjà proposé ou refusé.
+   */
+  clusters(mails: StoredMail[], now = Date.now()): Cluster[] {
+    const recent = mails.filter((m) => m.importance !== 'bruit' && now - m.date < 60 * DAY && !NOISE_SENDER.test(`${m.fromAddress} ${m.from}`));
+    const groups = new Map<string, StoredMail[]>();
+    for (const m of recent) {
+      const k = subjectKey(m.subject);
+      if (k.length >= 6) groups.set(`s:${k}`, [...(groups.get(`s:${k}`) ?? []), m]);
+    }
+    const bySender = new Map<string, StoredMail[]>();
+    for (const m of recent) if (m.fromAddress) bySender.set(`f:${m.fromAddress.toLowerCase()}`, [...(bySender.get(`f:${m.fromAddress.toLowerCase()}`) ?? []), m]);
+    for (const [k, list] of bySender) if (list.length >= 3 && list.some((m) => m.importance === 'important' || m.needsReply || m.replied)) groups.set(k, list);
+    const known = new Set(Object.values(this.ideas).map((i) => i.cluster).filter(Boolean));
+    const out: (Cluster & { score: number })[] = [];
+    for (const [key, list] of groups) {
+      if (known.has(key)) continue;
+      // un vrai projet : des échanges où quelque chose compte (important, attend ta réponse) ou où tu as répondu
+      const matters = list.filter((m) => m.importance === 'important' || m.needsReply || m.replied).length;
+      if (list.length < 2 || matters < 1) continue;
+      const text = list.map((m) => `${m.from} ${m.fromAddress} ${m.subject} ${m.summary}`).join(' ');
+      if (this.projects.some((p) => mentions(p, text))) continue;
+      const sorted = [...list].sort((a, b) => b.date - a.date);
+      out.push({ key, subject: sorted[0].subject, from: sorted[0].from, mails: sorted, score: list.length + 2 * matters + sorted.filter((m) => m.needsReply && !m.replied).length * 2 });
+    }
+    // un même fil compté deux fois (par objet et par correspondant) : on garde le plus gros
+    const kept: typeof out = [];
+    for (const c of out.sort((a, b) => b.score - a.score)) {
+      const uids = new Set(c.mails.map((m) => m.uid));
+      if (kept.some((k) => k.mails.filter((m) => uids.has(m.uid)).length > c.mails.length / 2)) continue;
+      kept.push(c);
+    }
+    return kept.slice(0, 6);
+  }
+
+  /** Un groupe a été nommé par le cerveau : il devient une idée à proposer (ou, sans nom, une impasse qu'on ne reposera pas) */
+  addCluster(c: Cluster, found: { name: string; keywords: string[] } | null) {
+    const state = found ? 'new' : 'declined';
+    const name = found?.name ?? c.subject.slice(0, 60);
+    if (found && this.find(name)) return null;
+    const key = `c:${c.key}`;
+    this.ideas[key] = {
+      name, keywords: found?.keywords ?? [], count: c.mails.length, state, cluster: c.key, mails: c.mails.length, last: c.mails[0]?.date ?? Date.now(), uids: c.mails.map((m) => m.uid),
+      notes: c.mails.filter((m) => m.summary || m.subject).slice(0, 4).map((m) => ({ text: `${m.from} : ${clip(m.summary || m.subject, 180)}`, at: m.date })),
+    };
+    this.commit(true);
+    return found ? { key, idea: this.ideas[key] } : null;
+  }
+
+  /** Oublie les idées repérées dont plus aucun mail n'est gardé (ils ont quitté la boîte principale) */
+  forgetOrphanIdeas(mails: StoredMail[]) {
+    const have = new Set(mails.map((m) => m.uid));
+    let n = 0;
+    for (const [k, i] of Object.entries(this.ideas)) {
+      if (i.cluster && i.state !== 'declined' && i.uids?.length && !i.uids.some((u) => have.has(u))) { delete this.ideas[k]; n++; }
+    }
+    if (n) this.commit();
+    return n;
+  }
+
+  /** Les idées à montrer dans l'onglet : celles repérées par regroupement (ou revenues deux fois), pas encore suivies ni écartées */
+  suggestions(now = Date.now()) {
+    return Object.entries(this.ideas)
+      .filter(([, i]) => i.state !== 'declined' && (i.cluster || i.count >= 2) && !this.find(i.name))
+      .map(([key, i]) => ({
+        key, name: i.name,
+        hint: `${i.mails ?? i.count} mail${(i.mails ?? i.count) > 1 ? 's' : ''}${i.last ? ` · ${Math.max(0, Math.round((now - i.last) / DAY))} j` : ''}`,
+      }));
+  }
+
+  /** Remonte l'historique : les mails déjà reçus qui parlent de ce projet rejoignent sa fiche (infos, « répondre à… ») */
+  backfill(id: string, mails: StoredMail[], now = Date.now()) {
+    const p = this.get(id);
+    if (!p || p.status === 'done') return 0;
+    let added = 0, replies = 0;
+    const mine = mails
+          .filter((m) => m.importance !== 'bruit' && now - m.date < 90 * DAY && (m.needsReply || !NOISE_SENDER.test(`${m.fromAddress} ${m.from}`)) && mentions(p, `${m.from} ${m.fromAddress} ${m.subject} ${m.summary}`))
+      .sort((a, b) => a.date - b.date);
+    for (const m of mine.slice(-10)) {
+      const what = m.summary || m.subject;
+      if (!what) continue;
+      if (this.addNote(p.id, `${m.from} : ${clip(what, 180)}${m.needsReply && !m.replied ? ' (attend une réponse)' : ''}`, 'mail', m.date)) added++;
+      if (m.needsReply && !m.replied && now - m.date < 21 * DAY && replies < 3 && this.addTodo(p.id, `Répondre à ${m.from}`, '', true)) replies++;
+    }
+    return added;
+  }
+
+  /** Une minute passée devant ce projet (la fenêtre au premier plan en parle) */
+  addMinute(id: string, now = Date.now()) {
+    const p = this.get(id);
+    if (!p) return;
+    const m = (p.minutes ??= {});
+    const day = today(now);
+    m[day] = (m[day] ?? 0) + 1;
+    for (const k of Object.keys(m)) if (now - Date.parse(`${k}T12:00`) > 120 * DAY) delete m[k];
+    p.seenAt = now;
+    this.commit(true);
   }
 
   // ---------- sujets qui reviennent ----------
@@ -382,6 +499,11 @@ export class ProjectStore extends EventEmitter {
       advice: advice.filter((a) => !this.dismissed[a.id]),
       events: events.map((e) => ({ when: e.allDay ? day(e.start) : `${day(e.start)} ${new Date(e.start).toLocaleTimeString(fr ? 'fr-FR' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}`, title: e.title })),
       mails: mails.slice(0, 3).map((m) => ({ from: m.from, summary: clip(m.summary || m.subject, 110), when: day(m.date) })),
+      time: (() => {
+        const all = Object.entries(p.minutes ?? {});
+        const since = today(now - 6 * DAY);
+        return { week: all.filter(([k]) => k >= since).reduce((a, [, v]) => a + v, 0), total: all.reduce((a, [, v]) => a + v, 0) };
+      })(),
     };
   }
 

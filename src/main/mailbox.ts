@@ -88,6 +88,14 @@ export class Mailbox extends EventEmitter {
     if (m) { Object.assign(m, patch); this.commit(); }
   }
 
+  /** Ne garde que ces mails (les autres ne sont plus dans la boîte principale) ; renvoie combien sont partis */
+  keepOnly(uids: Set<number>) {
+    const before = this.mails.length;
+    this.mails = this.mails.filter((m) => uids.has(m.uid));
+    if (this.mails.length !== before) this.commit();
+    return before - this.mails.length;
+  }
+
   /** Oublier tous les mails (débranchement de la boîte) */
   clear() {
     this.mails = [];

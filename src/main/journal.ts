@@ -70,8 +70,10 @@ export class Journal extends EventEmitter {
   /** Une minute passée dans `appName` */
   addAppMinute(appName: string) {
     if (!appName) return;
-    const apps = this.day().apps;
-    apps[appName] = (apps[appName] ?? 0) + 1;
+    const day = this.day();
+    day.apps[appName] = (day.apps[appName] ?? 0) + 1;
+    const hours = (day.hours ??= Array(24).fill(0));
+    hours[new Date().getHours()]++;
     this.save();
   }
 

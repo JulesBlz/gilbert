@@ -20,6 +20,9 @@ const T = {
     streakHint: 'd’affilée avec une session', completion: 'Sessions menées au bout',
     together: 'Ensemble depuis', focusEver: 'Concentration en tout', doneEver: 'Choses faites',
     nothing: "Rien pour l'instant. Lance une session (« Gilbert, 25 minutes ») et je note tout.",
+    usedDays: (n: number) => `sur ${n} jour${n > 1 ? 's' : ''}`,
+    topApp: 'Appli n°1', avg: 'Moyenne par jour', longest: 'Jour le plus long', peak: 'Heure de pointe', hours: 'Dans la journée', cats: 'Par type d’usage', weekScreen: 'Devant l’écran', untilNow: 'jusqu’ici', focusFold: 'Sessions de concentration', pomodoro: 'Tu peux aussi lancer une session de concentration : « Gilbert, 25 minutes ».',
+    category: { web: 'Navigation web', talk: 'Messages et mails', work: 'Travail et outils', create: 'Création', media: 'Musique et vidéo', game: 'Jeux', other: 'Autres' },
     off: 'Le carnet de bord est désactivé.', enable: 'Activer le carnet de bord', start: 'Lancer 25 minutes', note: 'La note de Gilbert',
   },
   en: {
@@ -35,6 +38,9 @@ const T = {
     streakHint: 'in a row with a session', completion: 'Sessions completed',
     together: 'Together for', focusEver: 'Total focus', doneEver: 'Things done',
     nothing: 'Nothing yet. Start a session ("Gilbert, 25 minutes") and I’ll log everything.',
+    usedDays: (n: number) => `over ${n} day${n > 1 ? 's' : ''}`,
+    topApp: 'Top app', avg: 'Daily average', longest: 'Longest day', peak: 'Peak hour', hours: 'During the day', cats: 'By kind of use', weekScreen: 'At the screen', untilNow: 'so far', focusFold: 'Focus sessions', pomodoro: 'You can also start a focus session: “Gilbert, 25 minutes”.',
+    category: { web: 'Web browsing', talk: 'Messages and email', work: 'Work and tools', create: 'Creative', media: 'Music and video', game: 'Games', other: 'Other' },
     off: 'The logbook is turned off.', enable: 'Turn the logbook on', start: 'Start 25 minutes', note: "Gilbert's note",
   },
   vi: {
@@ -50,6 +56,9 @@ const T = {
     streakHint: 'liên tiếp có buổi làm việc', completion: 'Buổi làm trọn vẹn',
     together: 'Bên nhau được', focusEver: 'Tổng thời gian tập trung', doneEver: 'Việc đã xong',
     nothing: 'Chưa có gì. Bắt đầu một buổi (« Gilbert, 25 phút ») và tớ ghi lại hết.',
+    usedDays: (n: number) => `trong ${n} ngày`,
+    topApp: 'Ứng dụng số 1', avg: 'Trung bình mỗi ngày', longest: 'Ngày dài nhất', peak: 'Giờ cao điểm', hours: 'Trong ngày', cats: 'Theo loại dùng', weekScreen: 'Trước màn hình', untilNow: 'đến giờ', focusFold: 'Các buổi tập trung', pomodoro: 'Cậu cũng có thể bắt đầu một buổi tập trung: « Gilbert, 25 phút ».',
+    category: { web: 'Duyệt web', talk: 'Tin nhắn và email', work: 'Công việc và công cụ', create: 'Sáng tạo', media: 'Nhạc và video', game: 'Trò chơi', other: 'Khác' },
     off: 'Nhật ký đang tắt.', enable: 'Bật nhật ký', start: 'Bắt đầu 25 phút', note: 'Ghi chú của Gilbert',
   },
 };
@@ -110,27 +119,58 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
   };
   if (!enabled) sections.push(h('div', { className: 'empty-state' }, h('p', {}, t.off), ...(act ? [cta(t.enable, act.enable)] : [])));
 
-  // ----- aujourd'hui -----
+  const kindOf = (app: string): keyof typeof t.category => {
+    if (/safari|chrome|firefox|arc\b|edge|brave|opera|vivaldi/i.test(app)) return 'web';
+    if (/messages|whatsapp|slack|discord|telegram|signal|mail|outlook|teams|zoom|messenger|thunderbird|skype/i.test(app)) return 'talk';
+    if (/figma|photoshop|illustrator|premiere|final cut|blender|sketch|canva|lightroom|davinci|procreate|aseprite|indesign|affinity/i.test(app)) return 'create';
+    if (/spotify|music|musique|vlc|netflix|youtube|podcast|twitch|iina|plex|tv\b|disney|deezer/i.test(app)) return 'media';
+    if (/steam|minecraft|epic|battle\.net|riot|league|valorant|roblox|fortnite|game/i.test(app)) return 'game';
+    if (/code|xcode|terminal|iterm|cursor|intellij|webstorm|pycharm|claude|notion|obsidian|word|excel|pages|numbers|keynote|powerpoint|docs|sublime|warp|ghostty|finder|preview|aperçu|notes|calendar|calendrier|reminders|rappels|powershell|cmd/i.test(app)) return 'work';
+    return 'other';
+  };
+  const byKind = (days: (JournalDay | undefined)[]) => {
+    const m = new Map<string, number>();
+    for (const d of days) for (const [a, min] of Object.entries(d?.apps ?? {})) m.set(kindOf(a), (m.get(kindOf(a)) ?? 0) + min);
+    return [...m.entries()].map(([k, min]) => [t.category[k as keyof typeof t.category], min] as [string, number]).sort((a, b) => b[1] - a[1]);
+  };
+  const hoursOf = (d?: JournalDay) => d?.hours ?? [];
+  /** Les 24 heures en colonnes : la plus chargée en orange */
+  const dayShape = (hours: number[]) => {
+    const peak = Math.max(...hours, 1);
+    const top = hours.indexOf(Math.max(...hours));
+    const cols = Array.from({ length: 24 }, (_, i) => {
+      const col = h('i', { className: i === top ? 'peak' : '' });
+      col.style.height = `${Math.max(hours[i] ? 8 : 2, Math.round(((hours[i] ?? 0) / peak) * 64))}px`;
+      col.title = `${i} h · ${hm(hours[i] ?? 0)}`;
+      return col;
+    });
+    return h('div', { className: 'shape' }, h('div', { className: 'cols' }, ...cols), h('div', { className: 'ticks' }, ...[0, 6, 12, 18, 23].map((n) => h('span', {}, `${n} h`))));
+  };
+
+  // ----- aujourd'hui : le temps d'écran, d'abord -----
   const today = data.days[iso(new Date())];
   const todaySec = h('section', {}, h('h2', {}, t.today));
   const screen = screenTime(today);
-  if (today && (today.focus.minutes || screen || today.done.length || today.chats)) {
-    const f = today.focus;
+  if (today && (screen || today.done.length || today.chats)) {
+    const apps = topApps([today], 8);
+    const hrs = hoursOf(today);
+    const peakH = hrs.length && Math.max(...hrs) ? hrs.indexOf(Math.max(...hrs)) : -1;
     todaySec.append(h('div', { className: 'tiles' },
-      tile(t.focus, hm(f.minutes), t.sessions(f.sessions, f.stopped)),
-      tile(t.screen, hm(screen), screen && f.minutes ? t.share(Math.min(100, Math.round((f.minutes / screen) * 100))) : ''),
-      tile(t.acorns, `+${today.acorns ?? 0}`, t.total(data.acorns.total)),
-      tile(t.done, String(today.done.length), today.done.slice(0, 2).join(', ')),
+      tile(t.screen, hm(screen), t.untilNow),
+      tile(t.topApp, apps[0]?.[0] ?? '—', apps[0] ? `${hm(apps[0][1])}${screen ? ` · ${Math.round((apps[0][1] / screen) * 100)} %` : ''}` : ''),
+      tile(t.peak, peakH >= 0 ? `${peakH} h` : '—', peakH >= 0 ? hm(hrs[peakH]) : ''),
     ));
-    const apps = topApps([today], 6);
     if (apps.length) todaySec.append(h('div', { className: 'label' }, t.apps), ...appBars(apps, screen));
+    const kinds = byKind([today]);
+    if (kinds.length > 1) todaySec.append(h('div', { className: 'label' }, t.cats), ...kinds.map(([k, m]) => bar(m, kinds[0][1], k, `${hm(m)} · ${Math.round((m / screen) * 100)} %`)));
+    if (hrs.some(Boolean)) todaySec.append(h('div', { className: 'label' }, t.hours), dayShape(hrs));
     if (today.note) todaySec.append(notes(today.note));
   } else {
-    todaySec.append(h('div', { className: 'empty-state' }, h('p', {}, t.nothing), ...(act ? [cta(t.start, act.focus)] : [])));
+    todaySec.append(h('div', { className: 'empty-state' }, h('p', {}, t.nothing)));
   }
   sections.push(todaySec);
 
-  // ----- la semaine -----
+  // ----- la semaine : le temps d'écran jour par jour -----
   const weekSec = h('section', {}, h('h2', {}, t.week));
   const monday = new Date();
   monday.setHours(12, 0, 0, 0);
@@ -138,26 +178,25 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
   const dayAt = (offset: number) => { const d = new Date(monday); d.setDate(d.getDate() + offset); return d; };
   const week = Array.from({ length: 7 }, (_, i) => dayAt(i));
   const lastWeek = Array.from({ length: 7 }, (_, i) => dayAt(i - 7));
-  const mins = week.map((d) => data.days[iso(d)]?.focus.minutes ?? 0);
-  const max = Math.max(...mins, 25);
-  // aujourd'hui en orange, les jours sans rien s'effacent
+  const mins = week.map((d) => screenTime(data.days[iso(d)]));
+  const max = Math.max(...mins, 60);
   const todayIdx = (new Date().getDay() + 6) % 7;
   week.forEach((d, i) => weekSec.append(bar(mins[i], max, d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' }), hm(mins[i]), i === todayIdx ? 'today' : mins[i] ? '' : 'zero')));
   const total = sum(mins);
-  const before = sum(lastWeek.map((d) => data.days[iso(d)]?.focus.minutes ?? 0));
-  const worked = mins.filter(Boolean).length;
-  const bestI = mins.indexOf(Math.max(...mins));
-  const finished = sum(week.map((d) => data.days[iso(d)]?.focus.sessions ?? 0));
-  const stopped = sum(week.map((d) => data.days[iso(d)]?.focus.stopped ?? 0));
-  const s = streak(data);
+  const before = sum(lastWeek.map((d) => screenTime(data.days[iso(d)])));
+  const used = mins.filter(Boolean).length;
+  const longI = mins.indexOf(Math.max(...mins));
+  const weekApps = topApps(week.map((d) => data.days[iso(d)]), 8);
   weekSec.append(h('div', { className: 'tiles' },
-    tile(t.focus, hm(total), before ? t.vsLast(Math.round(((total - before) / before) * 100)) : t.firstWeek),
-    tile(t.best, total ? week[bestI].toLocaleDateString(locale, { weekday: 'long' }) : '—', total ? hm(mins[bestI]) : ''),
-    tile(t.streak, t.days(s), t.streakHint),
-    tile(t.completion, finished + stopped ? `${Math.round((finished / (finished + stopped)) * 100)} %` : '—', finished + stopped ? t.sessions(finished, stopped) : ''),
+    tile(t.weekScreen, hm(total), before ? t.vsLast(Math.round(((total - before) / before) * 100)) : t.firstWeek),
+    tile(t.avg, used ? hm(Math.round(total / used)) : '—', used ? t.usedDays(used) : ''),
+    tile(t.longest, total ? week[longI].toLocaleDateString(locale, { weekday: 'long' }) : '—', total ? hm(mins[longI]) : ''),
   ));
-  const weekApps = topApps(week.map((d) => data.days[iso(d)]), 5);
-  if (weekApps.length) weekSec.append(h('div', { className: 'label' }, t.weekApps), ...appBars(weekApps, sum(week.map((d) => screenTime(data.days[iso(d)])))));
+  if (weekApps.length) weekSec.append(h('div', { className: 'label' }, t.weekApps), ...appBars(weekApps, total));
+  const weekKinds = byKind(week.map((d) => data.days[iso(d)]));
+  if (weekKinds.length > 1) weekSec.append(h('div', { className: 'label' }, t.cats), ...weekKinds.map(([k, m]) => bar(m, weekKinds[0][1], k, `${hm(m)} · ${Math.round((m / total) * 100)} %`)));
+  const weekHours = Array.from({ length: 24 }, (_, i) => sum(week.map((d) => hoursOf(data.days[iso(d)])[i] ?? 0)));
+  if (weekHours.some(Boolean)) weekSec.append(h('div', { className: 'label' }, t.hours), dayShape(weekHours));
   const summary = data.weeks[iso(monday)];
   if (summary) weekSec.append(notes(summary));
   sections.push(weekSec);
@@ -165,21 +204,44 @@ export function renderJournal(el: HTMLElement, data: JournalData, lang: Lang, en
   // ----- depuis le début -----
   const all = Object.values(data.days);
   const since = Math.max(1, Math.floor((Date.now() - data.firstSeen) / 86_400_000) + 1);
+  const everApps = topApps(all, 1);
   sections.push(h('section', {}, h('h2', {}, t.ever), h('div', { className: 'tiles' },
     tile(t.together, t.days(since)),
-    tile(t.focusEver, hm(sum(all.map((d) => d.focus.minutes)))),
+    tile(t.screen, hm(sum(all.map((d) => screenTime(d))))),
+    tile(t.topApp, everApps[0]?.[0] ?? '—', everApps[0] ? hm(everApps[0][1]) : ''),
     tile(t.acorns, String(data.acorns.total)),
     tile(t.doneEver, String(sum(all.map((d) => d.done.length)))),
   )));
 
+  // ----- la concentration : en retrait, pour ceux qui s'en servent -----
+  const focusEver = sum(all.map((d) => d.focus.minutes));
+  const todayFocus = today?.focus;
+  const fFinished = sum(week.map((d) => data.days[iso(d)]?.focus.sessions ?? 0));
+  const fStopped = sum(week.map((d) => data.days[iso(d)]?.focus.stopped ?? 0));
+  const fold = h('section', { className: 'fold' });
+  const det = h<HTMLDetailsElement>('details', {}, h('summary', {}, t.focusFold));
+  if (focusEver) {
+    det.append(h('div', { className: 'tiles' },
+      tile(t.focus, hm(todayFocus?.minutes ?? 0), todayFocus ? t.sessions(todayFocus.sessions, todayFocus.stopped) : ''),
+      tile(t.week, hm(sum(week.map((d) => data.days[iso(d)]?.focus.minutes ?? 0))), fFinished + fStopped ? t.sessions(fFinished, fStopped) : ''),
+      tile(t.streak, t.days(streak(data)), t.streakHint),
+      tile(t.focusEver, hm(focusEver)),
+    ));
+  } else {
+    det.append(notes(t.pomodoro));
+    if (act) det.append(cta(t.start, act.focus));
+  }
+  fold.append(det);
+  sections.push(fold);
+
   // ----- les jours d'avant, avec la note de Gilbert -----
-  const past = Object.keys(data.days).filter((k) => k < iso(new Date()) && (data.days[k].note || data.days[k].focus.minutes)).sort().reverse().slice(0, 14);
+  const past = Object.keys(data.days).filter((k) => k < iso(new Date()) && (data.days[k].note || screenTime(data.days[k]))).sort().reverse().slice(0, 14);
   if (past.length) {
     const pastSec = h('section', {}, h('h2', {}, t.past));
     for (const k of past) {
       const d = data.days[k];
       const date = new Date(`${k}T12:00`).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
-      pastSec.append(h('div', { className: 'label' }, `${date} · ${t.focus.toLowerCase()} ${hm(d.focus.minutes)}${d.acorns ? ` · ${d.acorns} ${t.acorns.toLowerCase()}` : ''}`));
+      pastSec.append(h('div', { className: 'label' }, `${date} · ${t.screen.toLowerCase()} ${hm(screenTime(d))}${d.acorns ? ` · ${d.acorns} ${t.acorns.toLowerCase()}` : ''}`));
       if (d.note) pastSec.append(notes(d.note));
     }
     sections.push(pastSec);

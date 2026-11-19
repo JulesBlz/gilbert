@@ -99,6 +99,15 @@ export class MailWatcher extends EventEmitter {
     });
   }
 
+  /** Parmi ces mails (leurs uid), ceux de l'onglet « Principale » de Gmail ; null hors Gmail, ou si l'option est coupée */
+  async primaryUids(uids: number[]): Promise<Set<number> | null> {
+    if (!this.primaryOnly || !uids.length || !this.settings) return null;
+    return this.session(async (client) => {
+      await client.mailboxOpen('INBOX', { readOnly: true });
+      return this.primaryOf(client, uids);
+    });
+  }
+
   /** Parmi ces adresses, celles à qui tu as écrit depuis `since` (d'après tes mails envoyés) */
   async wroteTo(addresses: string[], since: Date): Promise<Set<string>> {
     return this.session(async (client) => {

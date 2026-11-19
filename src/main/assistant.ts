@@ -20,7 +20,8 @@ import { Mailbox, type StoredMail } from './mailbox';
 import type { Weather } from './brief';
 import { getSecret, setSecret } from './secrets';
 import { triageMail } from './brain/triage';
-import { BriefStore, type Held, birthdays, eveningEmpty, isoDay, plainBrief, plainEvening, plainRecap, writeBrief, writeEvening, writeRecap, type BriefFacts, type EveningFacts } from './brief';
+import { BriefStore, type Held, birthdays, eveningEmpty, isoDay, plainBrief, plainEvening, plainRecap, writeBrief, writeEvening, toBubbles, writeRecap, type BriefFacts, type EveningFacts } from './brief';
+import { webSearch } from './web';
 import type { Brain } from './brain/brain';
 import type { MemoryStore } from './memory';
 import { LOCALE, SPEAK, type CalendarEvent, type Command, type ConnStatus, type Lang, type MailSettings, type Today } from '../shared/types';
@@ -53,6 +54,29 @@ interface Pending {
   pierce?: boolean;
   /** Il sursaute avec son « ! » (ce qui vient d'arriver) */
   alert?: boolean;
+}
+
+/** Pour ne pas faire un tunnel : entre deux paroles non urgentes, au moins 8 minutes ; trois par heure au plus */
+const GAP_MS = 8 * 60_000;
+const PER_HOUR = 3;
+/** Ce qui n'est plus d'actualité s'efface : une info au bout de 4 h, une proposition au bout d'un jour */
+const INFO_TTL = 4 * 3600_000;
+const ASK_TTL = 24 * 3600_000;
+/** Une série de bulles (brief, bilan, récap) : trois au plus, les lignes voisines sont réunies */
+const MAX_CHAIN = 3;
+
+/** Réunit les lignes voisines les plus courtes jusqu'à n'avoir que `n` bulles */
+export function packBubbles(list: string[], n = MAX_CHAIN) {
+  const out = list.filter(Boolean);
+  while (out.length > n) {
+    let best = 0, len = Infinity;
+    for (let i = 0; i < out.length - 1; i++) {
+      const l = out[i].length + out[i + 1].length;
+      if (l < len) { len = l; best = i; }
+    }
+    out.splice(best, 2, `${out[best]} ${out[best + 1]}`);
+  }
+  return out;
 }
 
 const AWAY_AFTER = 60;          // s sans clavier ni souris : les messages attendent ton retour
@@ -104,6 +128,8 @@ export class Assistant {
     projectTick?: () => { text: string; fact: string; urgent: boolean }[];
     /** Une ligne de la fiche du projet dont parle ce rendez-vous (vide s'il n'y en a pas) */
     projectBrief?: (eventTitle: string) => string;
+    /** Les idées de week-end sont-elles voulues, et la recherche web autorisée ? */
+    weekend?: () => { on: boolean; web: boolean };
     /** Ce qui presse dans les projets, pour le tableau de bord */
     projectsToday?: () => { id: string; name: string; text: string; due: string; late: boolean }[];
     /** Sessions de travail du jour, pour le bilan du soir */
@@ -254,6 +280,22 @@ export class Assistant {
     this.save();
   }
 
+  /**
+   * Seulement la boîte principale : les mails déjà rangés qui n'y sont plus (pubs, réseaux sociaux, notifications, spams)
+   * sont oubliés. Une fois par jour ; sans effet hors Gmail, ou si l'option est coupée.
+   */
+  async prunePrimary() {
+    if (!this.mail.primaryOnly || !this.saved.mail || !this.mailbox.mails.length) return 0;
+    try {
+      const primary = await this.mail.primaryUids(this.mailbox.mails.map((m) => m.uid));
+      // une réponse vide alors qu'on a des mails : plutôt une erreur qu'une boîte vide, on ne touche à rien
+      if (!primary || (primary.size === 0 && this.mailbox.mails.length > 20)) return 0;
+      return this.mailbox.keepOnly(primary);
+    } catch {
+      return 0;
+    }
+  }
+
   private async onMail(m: IncomingMail) {
     const tri = await triageMail(this.deps.brain, this.deps.memory.data, m, this.deps.lang());
     if (tri.importance === 'bruit') return;
@@ -313,6 +355,18 @@ export class Assistant {
     p?.onAnswer?.(value);
   }
 
+  /** Quand il a parlé de lui-même pour la dernière fois (pour espacer ses interventions) */
+  private spoken: number[] = [];
+  private markSpoken(now = Date.now()) {
+    this.spoken = this.spoken.filter((t) => now - t < 3600_000);
+    this.spoken.push(now);
+  }
+  /** A-t-il le droit de dire quelque chose qui n'est pas urgent ? */
+  private canSpeak(now = Date.now()) {
+    this.spoken = this.spoken.filter((t) => now - t < 3600_000);
+    return this.spoken.length < PER_HOUR && now - (this.spoken[this.spoken.length - 1] ?? 0) >= GAP_MS;
+  }
+
   private present() {
     return !this.deps.quiet() && !this.deps.focusing() && this.deps.userIdle() < AWAY_AFTER;
   }
@@ -340,16 +394,34 @@ export class Assistant {
       return;
     }
     const now = Date.now();
-    const list = this.queue.splice(0).filter((p) => !(p.transient && now - (p.at ?? now) > 2 * 60_000));
-    const info = list.filter((p) => !p.actions && !p.onAnswer);
+    // ce qui a trop attendu s'efface
+    this.queue = this.queue.filter((p) => {
+      const age = now - (p.at ?? now);
+      if (p.transient && age > 2 * 60_000) return false;
+      if (p.urgent || p.pierce) return true;
+      return age < (p.actions ? ASK_TTL : INFO_TTL);
+    });
+    const vip = this.queue.filter((p) => p.urgent || p.pierce);
+    const routine = this.queue.filter((p) => !(p.urgent || p.pierce));
+    // le routinier attend son tour : une prise de parole à la fois, espacée, trois par heure au plus
+    let chosen: Pending[] = [...vip];
+    if (routine.length && this.canSpeak(now)) {
+      const info = routine.filter((p) => !p.actions && !p.onAnswer);
+      // des infos : toutes d'un coup, mais en un seul récap ; sinon une seule proposition
+      chosen = [...chosen, ...(info.length ? info : [routine[0]])];
+      this.markSpoken(now);
+    }
+    if (!chosen.length) return;
+    this.queue = this.queue.filter((p) => !chosen.includes(p));
+    const info = chosen.filter((p) => !p.actions && !p.onAnswer);
     if (info.length >= 2) {
-      this.later.push(...list.filter((p) => !info.includes(p)));
+      this.later.push(...chosen.filter((p) => !info.includes(p)));
       this.telling = true;
       this.recap(info).catch(() => { this.sayBubbles(info.map((p) => p.text)); });
       return;
     }
     // un message à la fois : Gilbert enchaîne de lui-même (la file d'attente est dans l'interface)
-    for (const p of list) {
+    for (const p of chosen) {
       if (p.onAnswer) this.waiting.set(p.id, p);
       this.deps.send({ type: 'notify', id: p.id, text: p.text, urgent: p.urgent, alert: p.alert, actions: p.actions });
     }
@@ -370,8 +442,17 @@ export class Assistant {
       this.lastBirthdayCheck = now;
       this.birthdays().catch(() => {});
     }
+    // le week-end qui vient : le vendredi soir (ou le samedi matin si le vendredi a été raté), une fois par semaine
+    if (this.deps.weekend?.().on && !this.telling && this.canSpeak() && this.present()) {
+      const d = new Date(), wd = d.getDay();
+      if ((wd === 5 && d.getHours() >= 17) || (wd === 6 && d.getHours() < 12)) {
+        const friday = new Date(d);
+        friday.setDate(d.getDate() - (wd === 6 ? 1 : 0));
+        if (this.brief.once(`weekend-${isoDay(friday)}`)) this.weekend().catch(() => {});
+      }
+    }
     // le soir, une fois, quand tu es là et qu'il n'est pas déjà en train de parler
-    if (this.brief.eveningDue() && !this.telling && !this.queue.length && this.present()) {
+    if (this.brief.eveningDue() && !this.telling && this.present()) {
       this.brief.eveningDone();
       this.evening().catch(() => {}).finally(() => this.rainTomorrow().catch(() => {}));
     }
@@ -468,6 +549,41 @@ export class Assistant {
     this.sayBubbles(bubbles);
     this.deps.used?.('evening');
     return true;
+  }
+
+  /** Une ou deux idées de sortie pour le week-end : la météo, et (si tu l'autorises) ce que dit le web près de chez toi */
+  private async weekend() {
+    const brain = this.deps.brain;
+    const city = this.deps.memory.data.profile.city.trim();
+    if (!city || brain.status.state !== 'ready') return;
+    const lang = this.deps.lang();
+    const fr = lang === 'fr';
+    const forecast = await this.brief.weekendWeather(city, lang);
+    if (!forecast.length) return;
+    let found: string[] = [];
+    if (this.deps.weekend?.().web) {
+      const year = new Date().getFullYear();
+      const results = await webSearch(fr ? `idées sortie week-end ${city} ${year}` : `things to do this weekend ${city} ${year}`, lang, 5).catch(() => []);
+      found = results.slice(0, 5).map((r) => `- ${r.title} : ${r.snippet.slice(0, 160)}`);
+    }
+    const m = this.deps.memory.data;
+    const likes = [m.profile.fuel, m.profile.goal, ...m.facts.map((f) => f.text)].filter(Boolean).slice(0, 6);
+    const task = [
+      fr ? `C'est bientôt le week-end. Propose à ton humain 2 idées de sortie à ${city}, une par ligne, 25 mots maximum chacune, sans puces ni numéros, adaptées à la météo.`
+        : `The weekend is coming. Suggest 2 outing ideas in ${city} to your human, one per line, at most 25 words each, no bullets or numbers, suited to the weather.`,
+      fr ? 'N\'invente aucun événement, lieu précis ni horaire qui ne soit pas dans les résultats web ci-dessous ; sans résultats, reste sur des idées générales (balade, expo, marché, cinéma, resto).'
+        : 'Do not invent any event, specific venue or time that is not in the web results below; without results, stay with general ideas (walk, exhibition, market, cinema, restaurant).',
+      `${fr ? 'Écris' : 'Write'} ${SPEAK[lang]}.`,
+      '',
+      `${fr ? 'Météo' : 'Weather'} :`, ...forecast.map((l) => `- ${l}`),
+      ...(likes.length ? [`${fr ? 'Ce que tu sais de lui' : 'What you know about them'} : ${likes.join(' ; ')}`] : []),
+      ...(found.length ? [`${fr ? 'Résultats web' : 'Web results'} :`, ...found] : []),
+    ].join('\n');
+    const out = await brain.compose(task, 200);
+    const bubbles = out ? toBubbles(out).slice(0, 2) : [];
+    if (!bubbles.length) return;
+    const lead = this.t('Ce week-end', 'This weekend', 'Cuối tuần này') + ' (' + forecast.map((l) => l.split(',')[0]).join(' ; ') + ') : ';
+    this.tellBubbles([lead + bubbles[0], ...bubbles.slice(1)]);
   }
 
   /** De la pluie demain en fin de journée ? Il le dit le soir, pour qu'on prenne ses dispositions */
@@ -798,12 +914,13 @@ export class Assistant {
   }
 
   /** Une bulle après l'autre : « Suite » pour passer à la suivante, la dernière part toute seule */
-  private sayBubbles(bubbles: string[]) {
+  private sayBubbles(bubbles: string[], fresh = true) {
+    if (fresh) { bubbles = packBubbles(bubbles); if (bubbles.length) this.markSpoken(); }
     const [first, ...rest] = bubbles;
     this.telling = Boolean(first);
     if (this.chainTimer) clearTimeout(this.chainTimer);
     // personne n'a cliqué « Suite » : il laisse tomber la suite plutôt que de tout bloquer
-    this.chainTimer = first && rest.length ? setTimeout(() => this.sayBubbles([]), 10 * 60_000) : null;
+    this.chainTimer = first && rest.length ? setTimeout(() => this.sayBubbles([], false), 10 * 60_000) : null;
     if (!first) {
       for (const p of this.later.splice(0)) this.notify(p);
       return;
@@ -812,9 +929,9 @@ export class Assistant {
       text: first,
       urgent: false,
       actions: rest.length ? [{ label: this.t('Suite', 'Next', 'Tiếp'), value: 'next' }] : undefined,
-      onAnswer: (v) => { if (v === 'next') this.sayBubbles(rest); },
+      onAnswer: (v) => { if (v === 'next') this.sayBubbles(rest, false); },
     }, true);
-    if (!rest.length) this.sayBubbles([]);
+    if (!rest.length) this.sayBubbles([], false);
   }
 }
 

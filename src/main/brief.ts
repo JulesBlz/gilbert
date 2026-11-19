@@ -155,6 +155,33 @@ export class BriefStore {
     }
   }
 
+  /** La météo du prochain samedi et dimanche, en une ligne chacun ; vide si pas de ville ou pas de réseau */
+  async weekendWeather(city: string, lang: Lang, now = new Date()): Promise<string[]> {
+    city = city.trim();
+    if (!city) return [];
+    try {
+      const place = await this.place(city, lang);
+      if (!place) return [];
+      const q = new URLSearchParams({
+        latitude: String(place.lat), longitude: String(place.lon), timezone: 'auto', forecast_days: '7',
+        daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+      });
+      const d = (await getJson(`https://api.open-meteo.com/v1/forecast?${q}`) as {
+        daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_probability_max: (number | null)[] };
+      }).daily;
+      const out: string[] = [];
+      d.time.forEach((t, i) => {
+        const wd = new Date(`${t}T12:00:00`).getDay();
+        if (wd !== 6 && wd !== 0) return;
+        const name = new Date(`${t}T12:00:00`).toLocaleDateString(lang === 'fr' ? 'fr-FR' : lang === 'vi' ? 'vi-VN' : 'en-GB', { weekday: 'long' });
+        out.push(`${name} : ${sky(d.weather_code[i], lang)}, ${Math.round(d.temperature_2m_min[i])}–${Math.round(d.temperature_2m_max[i])} °C, ${d.precipitation_probability_max[i] ?? 0} %${lang === 'fr' ? ' de pluie' : lang === 'vi' ? ' mưa' : ' rain'}`);
+      });
+      return out.slice(0, 2);
+    } catch {
+      return [];
+    }
+  }
+
   /** De la pluie demain en fin de journée (16 h à 21 h) ? Renvoie la première heure de pluie et le risque ; null sinon */
   async rainTomorrowEvening(city: string, lang: Lang, now = new Date()): Promise<{ hour: number; prob: number } | null> {
     city = city.trim();
@@ -222,7 +249,7 @@ export function birthdays(memory: Memory, now = new Date()): BriefFacts['birthda
 
 // ---------- rédaction ----------
 
-const MAX_BUBBLES = 5;
+const MAX_BUBBLES = 3;
 
 /** Les faits, en liste, pour le modèle comme pour le brief de secours */
 export function factLines(f: BriefFacts, lang: Lang) {
@@ -350,9 +377,9 @@ export async function writeEvening(brain: Brain, f: EveningFacts, lang: Lang): P
   const list = (label: string, items: string[]) => (items.length ? [`${label} :`, ...items.map((x) => `- ${x}`)] : []);
   const task = [
     ...(fr
-      ? ['La journée de ton humain se termine. Fais-lui le bilan en 1 à 3 bulles, une par ligne, 25 mots maximum chacune, sans puces.',
+      ? ['La journée de ton humain se termine. Fais-lui le bilan en 1 à 2 bulles, une par ligne, 25 mots maximum chacune, sans puces.',
         'Félicite brièvement ce qui est fait, rappelle ce qui reste, annonce demain. Rien d’autre que ces informations. Une petite vanne à la fin si ça passe.']
-      : ['Your human’s day is ending. Give them the wrap-up in 1 to 3 bubbles, one per line, at most 25 words each, no bullets.',
+      : ['Your human’s day is ending. Give them the wrap-up in 1 to 2 bubbles, one per line, at most 25 words each, no bullets.',
         'Briefly praise what’s done, mention what’s left, announce tomorrow. Nothing but this information. A tiny joke at the end if it fits.']),
     `${fr ? 'Écris' : 'Write'} ${SPEAK[lang]}.`,
     '',
@@ -363,7 +390,7 @@ export async function writeEvening(brain: Brain, f: EveningFacts, lang: Lang): P
     ...list(fr ? 'Mails qui attendent sa réponse' : 'Emails waiting for a reply', f.waiting),
   ].join('\n');
   const out = await brain.compose(task, 220);
-  const bubbles = out ? toBubbles(out).slice(0, 3) : [];
+  const bubbles = out ? toBubbles(out).slice(0, 2) : [];
   return bubbles.length ? bubbles : null;
 }
 
